@@ -1,0 +1,53 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Dataset (too large for GitHub)
+data/
+*.mp4
+*.avi
+*.mov
+
+# Model files (use Git LFS or releases for large files)
+# Uncomment if model is too large
+# models/*.keras
+# models/*.h5
+
+# Logs and temporary files
+logs/
+*.log
+tmp/
+temp/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Python egg files
+*.egg
+*.egg-info/
+
+# Distribution / packaging
+dist/
+build/
+*.manifest
+*.spec
+
+# Test coverage
+.coverage
+htmlcov/
