@@ -186,7 +186,7 @@ def create_overlay(frame, is_confirmed, is_raw, confidence, individual_preds,
     return display
 
 
-def process_video(video_path, model):
+def process_video(video_path, model, save_output=True):
     """Process video with TTA + Temporal Smoothing."""
     
     cap = cv2.VideoCapture(video_path)
@@ -195,9 +195,22 @@ def process_video(video_path, model):
     
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # Setup video writer for saving output
+    video_writer = None
+    output_path = None
+    if save_output:
+        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "detection_result.mp4")
+        # Will initialize writer after first frame (to get correct dimensions with overlay)
     
     print(f"\n📹 Video: {video_path}")
     print(f"   Duration: {total_frames/fps:.1f}s ({total_frames} frames)")
+    if save_output:
+        print(f"\n💾 Output will be saved to: {output_path}")
     print(f"\n🛡️ False Positive Reduction Settings:")
     print(f"   Confidence Threshold: {CONFIDENCE_THRESHOLD*100:.0f}% (was 50%)")
     print(f"   Temporal Window: {TEMPORAL_WINDOW} frames")
@@ -235,7 +248,18 @@ def process_video(video_path, model):
                                 individual_preds, recent_count, frame_count, 
                                 total_frames, fps, stats)
         
-        # Resize for display
+        # Initialize video writer on first frame (now we know the dimensions)
+        if save_output and video_writer is None:
+            out_h, out_w = display.shape[:2]
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter(output_path, fourcc, fps, (out_w, out_h))
+            print(f"   📝 Writing video at {out_w}x{out_h} @ {fps:.1f} FPS\n")
+        
+        # Write frame to output video
+        if video_writer is not None:
+            video_writer.write(display)
+        
+        # Resize for display only (not for saving)
         disp_h, disp_w = display.shape[:2]
         if disp_w > 1200:
             scale = 1200 / disp_w
@@ -248,6 +272,8 @@ def process_video(video_path, model):
             break
     
     cap.release()
+    if video_writer is not None:
+        video_writer.release()
     cv2.destroyAllWindows()
     
     # Summary
@@ -258,9 +284,11 @@ def process_video(video_path, model):
     print(f"   Raw Detections (before filtering): {stats['raw']} ({stats['raw']/frame_count*100:.1f}%)")
     print(f"   Confirmed Accidents (after filtering): {stats['confirmed']} ({stats['confirmed']/frame_count*100:.1f}%)")
     print(f"   🛡️ False Positives Prevented: {stats['prevented']}")
+    if save_output and output_path:
+        print(f"\n💾 Output video saved to: {output_path}")
     print("=" * 70)
     
-    return stats
+    return stats, output_path
 
 
 def main():
@@ -277,9 +305,12 @@ def main():
         print(f"❌ Video not found: {video_path}")
         return
     
-    stats = process_video(video_path, model)
+    stats, output_path = process_video(video_path, model, save_output=True)
     
     print("\n✅ Detection complete!")
+    if output_path:
+        print(f"📁 You can find the output video at:")
+        print(f"   {os.path.abspath(output_path)}")
 
 
 if __name__ == "__main__":
