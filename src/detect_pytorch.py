@@ -43,6 +43,12 @@ COLOR_WARNING = (0, 165, 255) # Orange
 COLOR_WHITE = (255, 255, 255)
 COLOR_BLACK = (0, 0, 0)
 
+# Audio alert settings
+AUDIO_ENABLED = False         # Set via command line
+ALERT_FREQUENCY = 1000        # Hz
+ALERT_DURATION = 200          # ms
+MIN_ALERT_INTERVAL = 3.0      # Minimum seconds between alerts
+
 
 # ============================================================================
 # MODEL DEFINITION (must match training)
@@ -229,13 +235,14 @@ def apply_tta(frame, transform):
 
 
 # ============================================================================
-# TEMPORAL SMOOTHING
+# TEMPORAL SMOOTHING & INCIDENT TRACKING
 # ============================================================================
 class TemporalSmoother:
     """
     Reduces false positives using temporal smoothing.
     
     Only confirms accident if multiple consecutive frames show accident.
+    Also tracks distinct incidents (not just frames).
     """
     
     def __init__(self, window_size=5, min_consecutive=3, threshold=0.6):
@@ -243,16 +250,24 @@ class TemporalSmoother:
         self.min_consecutive = min_consecutive
         self.threshold = threshold
         self.confidence_history = deque(maxlen=window_size)
+        
+        # Incident tracking
+        self.in_incident = False
+        self.incident_count = 0
+        self.incident_start_frame = None
+        self.current_incident_frames = 0
+        self.last_alert_time = 0
     
-    def update(self, confidence):
+    def update(self, confidence, frame_num=0):
         """
         Update with new frame and return smoothed decision.
         
         Args:
             confidence: Accident probability (0-1)
+            frame_num: Current frame number
             
         Returns:
-            tuple: (confirmed_accident, raw_prediction, recent_count)
+            tuple: (confirmed_accident, raw_prediction, recent_count, new_incident)
         """
         raw_accident = confidence >= self.threshold
         self.window.append(raw_accident)
@@ -261,13 +276,39 @@ class TemporalSmoother:
         recent_accidents = sum(self.window)
         confirmed_accident = recent_accidents >= self.min_consecutive
         
-        return confirmed_accident, raw_accident, recent_accidents
+        # Track incidents (distinct accidents, not frames)
+        new_incident = False
+        if confirmed_accident:
+            if not self.in_incident:
+                # New incident started
+                self.in_incident = True
+                self.incident_count += 1
+                self.incident_start_frame = frame_num
+                self.current_incident_frames = 1
+                new_incident = True
+            else:
+                self.current_incident_frames += 1
+        else:
+            if self.in_incident:
+                # Incident ended
+                self.in_incident = False
+                self.current_incident_frames = 0
+        
+        return confirmed_accident, raw_accident, recent_accidents, new_incident
     
     def get_avg_confidence(self):
         """Get average confidence over the window."""
         if len(self.confidence_history) == 0:
             return 0.0
         return sum(self.confidence_history) / len(self.confidence_history)
+    
+    def should_alert(self):
+        """Check if enough time has passed for a new alert."""
+        current_time = time.time()
+        if current_time - self.last_alert_time >= MIN_ALERT_INTERVAL:
+            self.last_alert_time = current_time
+            return True
+        return False
 
 
 # ============================================================================
@@ -396,7 +437,8 @@ def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
         f"Avg Conf: {avg_confidence*100:.1f}%",
         f"Threshold: {CONFIDENCE_THRESHOLD*100:.0f}%",
         "",
-        f"Accidents: {stats['accidents']}",
+        f"Incidents: {stats['incidents']}",
+        f"Accident Frames: {stats['accident_frames']}",
         f"Total Frames: {stats['total_frames']}",
     ]
     
@@ -405,7 +447,8 @@ def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1)
     
     # Instructions
-    cv2.putText(frame, "Press 'Q' to quit | 'S' to screenshot | 'T' toggle TTA",
+    instr = "Press 'Q' quit | 'S' screenshot | 'T' TTA | 'A' audio"
+    cv2.putText(frame, instr,
                 (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1)
     
     return frame
@@ -414,7 +457,8 @@ def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
 # ============================================================================
 # MAIN DETECTION LOOP
 # ============================================================================
-def detect_video(source, model_path=None, output_path=None, show_display=True):
+def detect_video(source, model_path=None, output_path=None, show_display=True,
+                 enable_logging=False, log_file=None):
     """
     Run accident detection on a video source.
     
@@ -423,10 +467,30 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
         model_path: Path to .pth model file
         output_path: Path to save output video (optional)
         show_display: Whether to show live display
+        enable_logging: Whether to log detections to file
+        log_file: Path to log file (optional)
     """
+    global AUDIO_ENABLED
+    
     print("\n" + "="*60)
     print("🚗 ACCIDENT DETECTION SYSTEM (PyTorch)")
     print("="*60)
+    
+    # Setup logging
+    if enable_logging:
+        log_path = log_file or f"detection_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_path),
+                logging.StreamHandler()
+            ]
+        )
+        logger = logging.getLogger(__name__)
+        logger.info("Detection session started")
+    else:
+        logger = None
     
     # Load model
     model, device = load_model(model_path)
@@ -456,6 +520,9 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
         print(f"   Total Frames: {total_frames}")
         print(f"   Duration: {total_frames/fps:.1f} seconds")
     
+    if AUDIO_ENABLED and AUDIO_AVAILABLE:
+        print("   🔊 Audio alerts: Enabled")
+    
     # Setup video writer if output path specified
     writer = None
     if output_path:
@@ -470,10 +537,11 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
         threshold=CONFIDENCE_THRESHOLD
     )
     
-    # Statistics
+    # Statistics - now tracks incidents (distinct accidents) vs frames
     stats = {
         'total_frames': 0,
-        'accidents': 0,
+        'incidents': 0,         # Distinct accident incidents
+        'accident_frames': 0,   # Total frames with confirmed accident
         'raw_accidents': 0,
     }
     
@@ -506,15 +574,31 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
                 model, frame, device, transform, use_tta=use_tta
             )
             
-            # Temporal smoothing
-            is_confirmed, is_raw, recent_count = smoother.update(confidence)
+            # Temporal smoothing with incident tracking
+            is_confirmed, is_raw, recent_count, new_incident = smoother.update(
+                confidence, frame_num
+            )
             avg_confidence = smoother.get_avg_confidence()
             
             # Update stats
+            stats['incidents'] = smoother.incident_count
             if is_confirmed:
-                stats['accidents'] += 1
+                stats['accident_frames'] += 1
             if is_raw:
                 stats['raw_accidents'] += 1
+            
+            # Handle new incident
+            if new_incident:
+                if logger:
+                    logger.warning(f"INCIDENT #{stats['incidents']} detected at frame {frame_num} "
+                                 f"(confidence: {confidence*100:.1f}%)")
+                
+                # Audio alert
+                if AUDIO_ENABLED and AUDIO_AVAILABLE and smoother.should_alert():
+                    try:
+                        winsound.Beep(ALERT_FREQUENCY, ALERT_DURATION)
+                    except:
+                        pass
             
             # Draw overlay
             display_frame = draw_overlay(
@@ -543,6 +627,11 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
                     # Toggle TTA
                     use_tta = not use_tta
                     print(f"🔄 TTA {'enabled' if use_tta else 'disabled'}")
+                elif key == ord('a'):
+                    # Toggle audio
+                    AUDIO_ENABLED = not AUDIO_ENABLED
+                    status = 'enabled' if AUDIO_ENABLED else 'disabled'
+                    print(f"🔊 Audio alerts {status}")
             
             # Progress for video files
             if total_frames > 0 and frame_num % 100 == 0:
@@ -554,17 +643,21 @@ def detect_video(source, model_path=None, output_path=None, show_display=True):
         if writer:
             writer.release()
         cv2.destroyAllWindows()
+        
+        if logger:
+            logger.info(f"Detection session ended - {stats['incidents']} incidents detected")
     
     # Print summary
     print("\n" + "="*60)
     print("📊 DETECTION SUMMARY")
     print("="*60)
     print(f"   Total Frames Processed: {stats['total_frames']}")
-    print(f"   Confirmed Accidents: {stats['accidents']}")
+    print(f"   Distinct Incidents: {stats['incidents']}")
+    print(f"   Accident Frames: {stats['accident_frames']}")
     print(f"   Raw Accident Frames: {stats['raw_accidents']}")
     if stats['total_frames'] > 0:
-        accident_rate = stats['accidents'] / stats['total_frames'] * 100
-        print(f"   Accident Rate: {accident_rate:.2f}%")
+        accident_rate = stats['accident_frames'] / stats['total_frames'] * 100
+        print(f"   Accident Frame Rate: {accident_rate:.2f}%")
     print("="*60)
     
     return stats
@@ -656,8 +749,17 @@ Examples:
   # Save output video
   python detect_pytorch.py --source video.mp4 --output result.mp4
   
+  # With audio alerts and logging
+  python detect_pytorch.py --source 0 --audio --log
+  
   # Custom model path
   python detect_pytorch.py --source 0 --model models/accident_detector_best.pth
+
+Controls (during video playback):
+  Q - Quit
+  S - Screenshot
+  T - Toggle TTA
+  A - Toggle audio alerts
         """
     )
     
@@ -675,13 +777,20 @@ Examples:
                         help='Confidence threshold (default: 0.6)')
     parser.add_argument('--no-tta', action='store_true',
                         help='Disable Test-Time Augmentation')
+    parser.add_argument('--audio', action='store_true',
+                        help='Enable audio alerts on accident detection')
+    parser.add_argument('--log', action='store_true',
+                        help='Enable logging detections to file')
+    parser.add_argument('--log-file', type=str, default=None,
+                        help='Path to log file (default: auto-generated)')
     
     args = parser.parse_args()
     
     # Update global settings
-    global CONFIDENCE_THRESHOLD, TTA_ENABLED
+    global CONFIDENCE_THRESHOLD, TTA_ENABLED, AUDIO_ENABLED
     CONFIDENCE_THRESHOLD = args.threshold
     TTA_ENABLED = not args.no_tta
+    AUDIO_ENABLED = args.audio
     
     try:
         if args.image:
@@ -693,7 +802,9 @@ Examples:
                 args.source,
                 model_path=args.model,
                 output_path=args.output,
-                show_display=not args.no_display
+                show_display=not args.no_display,
+                enable_logging=args.log,
+                log_file=args.log_file
             )
     except KeyboardInterrupt:
         print("\n\n⏹️ Interrupted by user")
