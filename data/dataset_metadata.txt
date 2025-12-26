@@ -1,0 +1,23 @@
+============================================================
+ACCIDENT DETECTION DATASET METADATA
+============================================================
+
+Source: C:\Users\arrya\Downloads\archive (3)
+Total Images: 13228
+Random Seed: 42
+Image Size: 224x224
+
+SPLIT DISTRIBUTION:
+----------------------------------------
+
+TRAIN:
+  Accident: 4629
+  Non Accident: 4629
+
+VAL:
+  Accident: 992
+  Non Accident: 992
+
+TEST:
+  Accident: 993
+  Non Accident: 993
