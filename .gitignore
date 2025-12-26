@@ -19,6 +19,7 @@ env/
 
 # Dataset (too large for GitHub)
 data/
+!data/dataset_metadata.txt
 *.mp4
 *.avi
 *.mov
