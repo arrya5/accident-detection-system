@@ -13,6 +13,9 @@ numpy>=1.24.0
 # Image Processing
 pillow>=10.0.0
 
+# Progress bars
+tqdm>=4.65.0
+
 # Optional: For Jupyter Notebook support
 # jupyter>=1.0.0
 # matplotlib>=3.7.0
