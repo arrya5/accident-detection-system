@@ -10,8 +10,11 @@ Features:
 - Temporal smoothing to reduce false positives
 - Support for webcam, video files, and RTSP streams
 - Visual overlay with detection status and statistics
+- Incident counting (distinct accidents, not frames)
+- Optional audio alerts
+- Detection logging to file
 
-Author: Accident Detection System
+Author: Arya Bhardwaj
 Date: December 2025
 License: MIT
 """
@@ -24,8 +27,17 @@ import numpy as np
 import argparse
 import os
 import sys
+import logging
 from collections import deque
+from datetime import datetime
 import time
+
+# Optional: audio alerts (Windows only)
+try:
+    import winsound
+    AUDIO_AVAILABLE = True
+except ImportError:
+    AUDIO_AVAILABLE = False
 
 # ============================================================================
 # CONFIGURATION
