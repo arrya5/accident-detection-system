@@ -204,23 +204,22 @@ def verify_on_dataset(model: nn.Module, loader: DataLoader,
             if len(probs.shape) == 0:
                 probs = probs.unsqueeze(0)
             
-            # Class 0 = Accident, Class 1 = Non-Accident
-            # P(Accident) = 1 - sigmoid(output)
-            accident_probs = 1 - probs
-            
-            # Predictions
-            preds = (accident_probs >= 0.5).long()
+            # Model outputs: high sigmoid = Non-Accident (1), low sigmoid = Accident (0)
+            # Label mapping: Accident = 0, Non Accident = 1
+            # Prediction: prob > 0.5 → class 1 (Non Accident)
+            preds = (probs >= 0.5).long()
             
             # Store results
             for i in range(len(labels)):
                 label = labels[i].item()
                 pred = preds[i].item()
-                conf = accident_probs[i].item()
+                prob = probs[i].item()
                 
                 all_preds.append(pred)
                 all_labels.append(label)
-                all_raw_probs.append(conf)  # Store raw accident probability
-                all_confidences.append(conf if label == 0 else 1 - conf)
+                all_raw_probs.append(1 - prob)  # Store accident probability for ROC
+                # Confidence = probability of predicted class
+                all_confidences.append(prob if pred == 1 else 1 - prob)
                 
                 # Per-class tracking
                 class_total[label] += 1
@@ -229,9 +228,9 @@ def verify_on_dataset(model: nn.Module, loader: DataLoader,
                 
                 # Store confidence for the true class
                 if label == 0:  # Accident
-                    class_confidences[0].append(conf)
+                    class_confidences[0].append(1 - prob)  # P(Accident) = 1 - sigmoid
                 else:  # Non-Accident
-                    class_confidences[1].append(1 - conf)
+                    class_confidences[1].append(prob)  # P(Non-Accident) = sigmoid
     
     # Calculate metrics
     all_preds = np.array(all_preds)
@@ -534,10 +533,24 @@ def export_report(val_results: dict, test_results: dict,
     val_clean = {k: v for k, v in val_results.items() if not k.startswith('_')}
     test_clean = {k: v for k, v in test_results.items() if not k.startswith('_')}
     
+    # Convert numpy types to Python native types for JSON serialization
+    def convert_to_native(obj):
+        if isinstance(obj, dict):
+            return {k: convert_to_native(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_native(item) for item in obj]
+        elif isinstance(obj, (np.integer, np.int32, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return obj
+    
     report = {
         'timestamp': datetime.now().isoformat(),
-        'validation_results': val_clean,
-        'test_results': test_clean,
+        'validation_results': convert_to_native(val_clean),
+        'test_results': convert_to_native(test_clean),
         'class_names': class_names,
         'warnings': warnings,
         'verdict': 'PASS' if (not warnings and test_results['accuracy'] >= 0.95) else 

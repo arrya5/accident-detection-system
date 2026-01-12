@@ -1,0 +1,109 @@
+{
+  "timestamp": "2026-01-12T18:40:14.534622",
+  "validation_results": {
+    "total": 1984,
+    "correct": 1984,
+    "accuracy": 1.0,
+    "class_accuracy": {
+      "0": 1.0,
+      "1": 1.0
+    },
+    "class_total": {
+      "0": 992,
+      "1": 992
+    },
+    "class_correct": {
+      "0": 992,
+      "1": 992
+    },
+    "confidence_stats": {
+      "mean": 0.99907450921283,
+      "std": 0.009839884612742822,
+      "min": 0.6347503662109375,
+      "max": 0.9999999419392402,
+      "median": 0.9999416470527649
+    },
+    "per_class_conf_stats": {
+      "0": {
+        "mean": 0.9992876452337806,
+        "std": 0.011795136790142536,
+        "min": 0.6347503662109375,
+        "max": 0.9999999419392402
+      },
+      "1": {
+        "mean": 0.9988613731918796,
+        "std": 0.007377706456559435,
+        "min": 0.8244516849517822,
+        "max": 0.9999964237213135
+      }
+    },
+    "true_positives": 992,
+    "true_negatives": 992,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "specificity": 1.0,
+    "roc_auc": 0.0,
+    "pr_auc": 0.0
+  },
+  "test_results": {
+    "total": 1986,
+    "correct": 1982,
+    "accuracy": 0.9979859013091642,
+    "class_accuracy": {
+      "0": 0.9959718026183283,
+      "1": 1.0
+    },
+    "class_total": {
+      "0": 993,
+      "1": 993
+    },
+    "class_correct": {
+      "0": 989,
+      "1": 993
+    },
+    "confidence_stats": {
+      "mean": 0.9983547648180738,
+      "std": 0.017732177669110984,
+      "min": 0.5406083166599274,
+      "max": 0.9999999389850203,
+      "median": 0.9999428849660035
+    },
+    "per_class_conf_stats": {
+      "0": {
+        "mean": 0.9950052597304427,
+        "std": 0.05776076116701725,
+        "min": 0.03211712837219238,
+        "max": 0.9999999389850203
+      },
+      "1": {
+        "mean": 0.9989482362464835,
+        "std": 0.00528661883061355,
+        "min": 0.9324101805686951,
+        "max": 0.9999964237213135
+      }
+    },
+    "true_positives": 989,
+    "true_negatives": 993,
+    "false_positives": 0,
+    "false_negatives": 4,
+    "precision": 1.0,
+    "recall": 0.9959718026183283,
+    "f1_score": 0.9979818365287589,
+    "specificity": 1.0,
+    "roc_auc": 0.0,
+    "pr_auc": 0.0
+  },
+  "class_names": [
+    "Accident",
+    "Non Accident"
+  ],
+  "warnings": [
+    "\u26a0\ufe0f Validation accuracy (100.00%) is very high. Verify no data leakage between train/val sets.",
+    "\u26a0\ufe0f Test accuracy (99.80%) is very high. Verify no data leakage between train/test sets.",
+    "\u26a0\ufe0f Confidence variance on validation set is very low (0.0098). Model predictions might be too uniform."
+  ],
+  "verdict": "REVIEW"
+}
