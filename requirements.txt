@@ -1,8 +1,9 @@
 # Accident Detection System - Dependencies
 # Python 3.10+ required
 
-# Deep Learning Framework
-tensorflow>=2.15.0
+# Deep Learning Framework (PyTorch)
+torch>=2.0.0
+torchvision>=0.15.0
 
 # Computer Vision
 opencv-python>=4.8.0
@@ -15,6 +16,9 @@ pillow>=10.0.0
 
 # Progress bars
 tqdm>=4.65.0
+
+# Web Dashboard
+streamlit>=1.30.0
 
 # Optional: For Jupyter Notebook support
 # jupyter>=1.0.0
