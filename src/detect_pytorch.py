@@ -50,10 +50,10 @@ import threading
 # CONFIGURATION
 # ============================================================================
 IMG_SIZE = 224
-CONFIDENCE_THRESHOLD = 0.6  # Threshold for accident detection
+CONFIDENCE_THRESHOLD = 0.85  # Threshold for accident detection (use --threshold to override)
 TTA_ENABLED = True          # Enable Test-Time Augmentation
-TEMPORAL_WINDOW = 5         # Number of frames for temporal smoothing
-MIN_CONSECUTIVE = 3         # Minimum consecutive frames to confirm accident
+TEMPORAL_WINDOW = 7         # Number of frames for temporal smoothing
+MIN_CONSECUTIVE = 5         # Minimum consecutive frames to confirm accident
 
 # Colors (BGR format for OpenCV)
 COLOR_SAFE = (0, 255, 0)      # Green
