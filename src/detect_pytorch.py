@@ -369,101 +369,313 @@ def predict(model, frame, device, transform, use_tta=True):
 
 
 # ============================================================================
-# VISUALIZATION
+# VISUALIZATION - PROFESSIONAL DASHBOARD
 # ============================================================================
-def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
-                 recent_count, frame_num, total_frames, fps, stats):
-    """
-    Draw detection overlay on frame.
+
+# Dashboard configuration
+DASHBOARD_WIDTH = 320  # Width of side panel
+HEADER_HEIGHT = 70
+SECTION_PADDING = 15
+LINE_HEIGHT = 28
+
+# Dashboard colors (BGR)
+PANEL_BG = (40, 40, 40)         # Dark gray
+PANEL_HEADER = (60, 60, 60)     # Slightly lighter gray
+ACCENT_BLUE = (255, 180, 50)    # Accent color
+ACCENT_GREEN = (100, 220, 100)  # Success green
+ACCENT_RED = (80, 80, 255)      # Danger red
+ACCENT_ORANGE = (80, 165, 255)  # Warning orange
+TEXT_PRIMARY = (255, 255, 255)  # White
+TEXT_SECONDARY = (180, 180, 180) # Gray
+DIVIDER_COLOR = (80, 80, 80)    # Divider lines
+
+
+def draw_progress_bar(img, x, y, width, height, value, max_value=1.0, 
+                      bg_color=(60, 60, 60), fill_color=ACCENT_GREEN, 
+                      border_color=(100, 100, 100)):
+    """Draw a modern progress bar."""
+    # Background
+    cv2.rectangle(img, (x, y), (x + width, y + height), bg_color, -1)
     
-    Args:
-        frame: OpenCV BGR image
-        is_confirmed: Whether accident is confirmed (after temporal smoothing)
-        is_raw: Raw prediction for this frame
-        confidence: Current frame confidence
-        avg_confidence: Average confidence over temporal window
-        recent_count: Number of recent accident frames
-        frame_num: Current frame number
-        total_frames: Total frames (0 for live feed)
-        fps: Current FPS
-        stats: Detection statistics dictionary
-        
+    # Fill
+    fill_width = int(width * min(value / max_value, 1.0))
+    if fill_width > 0:
+        cv2.rectangle(img, (x, y), (x + fill_width, y + height), fill_color, -1)
+    
+    # Border with rounded corners effect
+    cv2.rectangle(img, (x, y), (x + width, y + height), border_color, 1)
+    
+    return img
+
+
+def draw_circular_gauge(img, center_x, center_y, radius, value, max_value=1.0,
+                        bg_color=(60, 60, 60), fill_color=ACCENT_GREEN):
+    """Draw a circular gauge/arc for confidence."""
+    # Background circle
+    cv2.circle(img, (center_x, center_y), radius, bg_color, 3)
+    
+    # Calculate arc angle (270 degrees sweep, starting from bottom-left)
+    angle = int(270 * min(value / max_value, 1.0))
+    if angle > 0:
+        cv2.ellipse(img, (center_x, center_y), (radius, radius), 
+                    135, 0, angle, fill_color, 4)
+    
+    return img
+
+
+def draw_metric_card(panel, x, y, width, height, title, value, unit="",
+                     icon="", value_color=TEXT_PRIMARY):
+    """Draw a metric card with title and value."""
+    # Card background
+    cv2.rectangle(panel, (x, y), (x + width, y + height), PANEL_HEADER, -1)
+    cv2.rectangle(panel, (x, y), (x + width, y + height), DIVIDER_COLOR, 1)
+    
+    # Title
+    cv2.putText(panel, title, (x + 10, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    
+    # Value
+    value_text = f"{value}{unit}"
+    cv2.putText(panel, value_text, (x + 10, y + height - 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, value_color, 2)
+
+
+def create_dashboard(frame, is_confirmed, is_raw, confidence, avg_confidence,
+                     recent_count, frame_num, total_frames, fps, stats,
+                     use_tta=True, audio_enabled=False):
+    """
+    Create a professional dashboard with side panel showing all metrics.
+    
     Returns:
-        Frame with overlay
+        Combined frame with video and dashboard panel
     """
     h, w = frame.shape[:2]
-    overlay = frame.copy()
     
-    # Status bar at top
-    status_height = 80
+    # Create dashboard panel
+    panel = np.zeros((h, DASHBOARD_WIDTH, 3), dtype=np.uint8)
+    panel[:] = PANEL_BG
+    
+    # ===== HEADER =====
+    cv2.rectangle(panel, (0, 0), (DASHBOARD_WIDTH, HEADER_HEIGHT), PANEL_HEADER, -1)
+    cv2.putText(panel, "ACCIDENT DETECTION", (15, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, ACCENT_BLUE, 2)
+    cv2.putText(panel, "Real-time Monitoring System", (15, 52),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    
+    # Divider
+    cv2.line(panel, (0, HEADER_HEIGHT), (DASHBOARD_WIDTH, HEADER_HEIGHT), DIVIDER_COLOR, 1)
+    
+    y_offset = HEADER_HEIGHT + SECTION_PADDING
+    
+    # ===== STATUS SECTION =====
     if is_confirmed:
-        status_color = COLOR_DANGER
-        status_text = "🚨 ACCIDENT DETECTED"
+        status_text = "ACCIDENT DETECTED"
+        status_color = ACCENT_RED
+        status_bg = (40, 40, 80)
     elif is_raw:
-        status_color = COLOR_WARNING
-        status_text = "⚠️ POSSIBLE ACCIDENT"
+        status_text = "POSSIBLE ACCIDENT"
+        status_color = ACCENT_ORANGE
+        status_bg = (40, 60, 80)
     else:
-        status_color = COLOR_SAFE
-        status_text = "✅ NORMAL TRAFFIC"
+        status_text = "NORMAL TRAFFIC"
+        status_color = ACCENT_GREEN
+        status_bg = (40, 60, 40)
     
-    # Draw status bar
-    cv2.rectangle(overlay, (0, 0), (w, status_height), status_color, -1)
-    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+    # Status banner
+    cv2.rectangle(panel, (10, y_offset), (DASHBOARD_WIDTH - 10, y_offset + 45), status_bg, -1)
+    cv2.rectangle(panel, (10, y_offset), (DASHBOARD_WIDTH - 10, y_offset + 45), status_color, 2)
+    cv2.putText(panel, status_text, (20, y_offset + 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
     
-    # Status text
-    cv2.putText(frame, status_text, (20, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.2, COLOR_WHITE, 3)
+    y_offset += 60
     
-    # Confidence bar
-    bar_width = 300
-    bar_height = 25
-    bar_x = w - bar_width - 20
-    bar_y = 100
+    # ===== CONFIDENCE SECTION =====
+    cv2.putText(panel, "CONFIDENCE METRICS", (15, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 10
+    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
+    y_offset += 15
     
-    # Background
-    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height),
-                  COLOR_WHITE, -1)
+    # Current confidence with gauge
+    gauge_color = ACCENT_RED if confidence > 0.6 else ACCENT_ORANGE if confidence > 0.4 else ACCENT_GREEN
+    cv2.putText(panel, "Current", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    draw_progress_bar(panel, 80, y_offset, 140, 18, confidence, fill_color=gauge_color)
+    cv2.putText(panel, f"{confidence*100:.1f}%", (230, y_offset + 14),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, gauge_color, 1)
+    y_offset += 30
     
-    # Fill based on confidence
-    fill_width = int(bar_width * confidence)
-    fill_color = COLOR_DANGER if confidence > 0.6 else COLOR_WARNING if confidence > 0.4 else COLOR_SAFE
-    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_width, bar_y + bar_height),
-                  fill_color, -1)
+    # Average confidence
+    avg_color = ACCENT_RED if avg_confidence > 0.6 else ACCENT_ORANGE if avg_confidence > 0.4 else ACCENT_GREEN
+    cv2.putText(panel, "Average", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    draw_progress_bar(panel, 80, y_offset, 140, 18, avg_confidence, fill_color=avg_color)
+    cv2.putText(panel, f"{avg_confidence*100:.1f}%", (230, y_offset + 14),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, avg_color, 1)
+    y_offset += 30
     
-    # Border
-    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height),
-                  COLOR_BLACK, 2)
+    # Threshold indicator
+    cv2.putText(panel, "Threshold", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    cv2.putText(panel, f"{CONFIDENCE_THRESHOLD*100:.0f}%", (230, y_offset + 14),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_PRIMARY, 1)
+    y_offset += 40
     
-    # Confidence text
-    cv2.putText(frame, f"Confidence: {confidence*100:.1f}%", 
-                (bar_x, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_WHITE, 2)
+    # ===== DETECTION STATISTICS =====
+    cv2.putText(panel, "DETECTION STATISTICS", (15, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 10
+    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
+    y_offset += 15
     
-    # Statistics panel
-    panel_y = 150
-    line_height = 25
+    # Metric cards in 2x2 grid
+    card_w = 140
+    card_h = 55
     
-    info_lines = [
-        f"Frame: {frame_num}" + (f"/{total_frames}" if total_frames > 0 else ""),
-        f"FPS: {fps:.1f}",
-        f"Temporal: {recent_count}/{TEMPORAL_WINDOW} frames",
-        f"Avg Conf: {avg_confidence*100:.1f}%",
-        f"Threshold: {CONFIDENCE_THRESHOLD*100:.0f}%",
-        "",
-        f"Incidents: {stats['incidents']}",
-        f"Accident Frames: {stats['accident_frames']}",
-        f"Total Frames: {stats['total_frames']}",
-    ]
+    # Incidents (distinct accidents)
+    incident_color = ACCENT_RED if stats['incidents'] > 0 else ACCENT_GREEN
+    draw_metric_card(panel, 10, y_offset, card_w, card_h, "INCIDENTS", 
+                     stats['incidents'], value_color=incident_color)
     
-    for i, line in enumerate(info_lines):
-        cv2.putText(frame, line, (20, panel_y + i * line_height),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1)
+    # Accident frames
+    draw_metric_card(panel, 160, y_offset, card_w, card_h, "ACCIDENT FRAMES", 
+                     stats['accident_frames'], value_color=ACCENT_ORANGE if stats['accident_frames'] > 0 else TEXT_PRIMARY)
+    y_offset += card_h + 10
     
-    # Instructions
-    instr = "Press 'Q' quit | 'S' screenshot | 'T' TTA | 'A' audio"
-    cv2.putText(frame, instr,
-                (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1)
+    # Total frames
+    draw_metric_card(panel, 10, y_offset, card_w, card_h, "TOTAL FRAMES", 
+                     stats['total_frames'], value_color=TEXT_PRIMARY)
     
-    return frame
+    # Accident rate
+    accident_rate = (stats['accident_frames'] / max(stats['total_frames'], 1)) * 100
+    rate_color = ACCENT_RED if accident_rate > 10 else ACCENT_ORANGE if accident_rate > 5 else ACCENT_GREEN
+    draw_metric_card(panel, 160, y_offset, card_w, card_h, "ACCIDENT RATE", 
+                     f"{accident_rate:.1f}", unit="%", value_color=rate_color)
+    y_offset += card_h + 20
+    
+    # ===== TEMPORAL ANALYSIS =====
+    cv2.putText(panel, "TEMPORAL ANALYSIS", (15, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 10
+    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
+    y_offset += 15
+    
+    # Temporal window visualization
+    cv2.putText(panel, f"Window: {recent_count}/{TEMPORAL_WINDOW} frames", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_PRIMARY, 1)
+    y_offset += 25
+    
+    # Visual representation of temporal window
+    block_width = 50
+    block_height = 20
+    for i in range(TEMPORAL_WINDOW):
+        x = 20 + i * (block_width + 5)
+        if i < recent_count:
+            color = ACCENT_RED
+        else:
+            color = (80, 80, 80)
+        cv2.rectangle(panel, (x, y_offset), (x + block_width, y_offset + block_height), color, -1)
+        cv2.rectangle(panel, (x, y_offset), (x + block_width, y_offset + block_height), (100, 100, 100), 1)
+    y_offset += 40
+    
+    # ===== SYSTEM INFO =====
+    cv2.putText(panel, "SYSTEM INFO", (15, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 10
+    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
+    y_offset += 15
+    
+    # FPS
+    fps_color = ACCENT_GREEN if fps >= 25 else ACCENT_ORANGE if fps >= 15 else ACCENT_RED
+    cv2.putText(panel, f"FPS: {fps:.1f}", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, fps_color, 1)
+    
+    # Progress (for video files)
+    if total_frames > 0:
+        progress = frame_num / total_frames
+        cv2.putText(panel, f"Progress: {progress*100:.1f}%", (150, y_offset + 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_PRIMARY, 1)
+    y_offset += 25
+    
+    # Frame counter
+    frame_text = f"Frame: {frame_num}"
+    if total_frames > 0:
+        frame_text += f" / {total_frames}"
+    cv2.putText(panel, frame_text, (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 35
+    
+    # ===== SETTINGS =====
+    cv2.putText(panel, "SETTINGS", (15, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
+    y_offset += 10
+    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
+    y_offset += 15
+    
+    # TTA status
+    tta_color = ACCENT_GREEN if use_tta else TEXT_SECONDARY
+    tta_text = "ON" if use_tta else "OFF"
+    cv2.putText(panel, f"TTA: {tta_text}", (20, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, tta_color, 1)
+    
+    # Audio status
+    audio_color = ACCENT_GREEN if audio_enabled else TEXT_SECONDARY
+    audio_text = "ON" if audio_enabled else "OFF"
+    cv2.putText(panel, f"Audio: {audio_text}", (120, y_offset + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, audio_color, 1)
+    y_offset += 35
+    
+    # ===== CONTROLS (at bottom) =====
+    controls_y = h - 60
+    cv2.line(panel, (0, controls_y - 10), (DASHBOARD_WIDTH, controls_y - 10), DIVIDER_COLOR, 1)
+    cv2.putText(panel, "CONTROLS", (15, controls_y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
+    cv2.putText(panel, "[Q] Quit  [S] Screenshot", (15, controls_y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, TEXT_SECONDARY, 1)
+    cv2.putText(panel, "[T] Toggle TTA  [A] Audio", (15, controls_y + 38),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, TEXT_SECONDARY, 1)
+    
+    # ===== ADD STATUS INDICATOR ON VIDEO FRAME =====
+    video_frame = frame.copy()
+    
+    # Status banner on video
+    banner_h = 50
+    overlay = video_frame.copy()
+    if is_confirmed:
+        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 0, 180), -1)
+    elif is_raw:
+        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 120, 180), -1)
+    else:
+        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 120, 0), -1)
+    cv2.addWeighted(overlay, 0.6, video_frame, 0.4, 0, video_frame)
+    
+    cv2.putText(video_frame, status_text, (15, 35),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+    
+    # Confidence on video
+    cv2.putText(video_frame, f"{confidence*100:.0f}%", (w - 80, 38),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
+    
+    # Combine video and panel
+    combined = np.hstack([video_frame, panel])
+    
+    return combined
+
+
+def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
+                 recent_count, frame_num, total_frames, fps, stats,
+                 use_tta=True, audio_enabled=False):
+    """
+    Draw detection overlay on frame with professional dashboard.
+    
+    This is the main visualization function that creates the combined view
+    with video feed and side panel dashboard.
+    """
+    return create_dashboard(
+        frame, is_confirmed, is_raw, confidence, avg_confidence,
+        recent_count, frame_num, total_frames, fps, stats,
+        use_tta, audio_enabled
+    )
 
 
 # ============================================================================
@@ -536,11 +748,14 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
         print("   🔊 Audio alerts: Enabled")
     
     # Setup video writer if output path specified
+    # Note: Output includes dashboard panel, so width is video_width + DASHBOARD_WIDTH
     writer = None
     if output_path:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        output_width = width + DASHBOARD_WIDTH  # Include dashboard panel
+        writer = cv2.VideoWriter(output_path, fourcc, fps, (output_width, height))
         print(f"\n📁 Saving output to: {output_path}")
+        print(f"   Output resolution: {output_width}x{height} (includes dashboard)")
     
     # Initialize temporal smoother
     smoother = TemporalSmoother(
@@ -612,14 +827,16 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
                     except:
                         pass
             
-            # Draw overlay
+            # Draw overlay with professional dashboard
             display_frame = draw_overlay(
                 frame.copy(), is_confirmed, is_raw, confidence, avg_confidence,
-                recent_count, frame_num, total_frames, current_fps, stats
+                recent_count, frame_num, total_frames, current_fps, stats,
+                use_tta=use_tta, audio_enabled=AUDIO_ENABLED
             )
             
-            # Write output
+            # Write output - need to resize back if saving without dashboard
             if writer:
+                # Save with dashboard
                 writer.write(display_frame)
             
             # Show display
@@ -714,21 +931,26 @@ def detect_image(image_path, model_path=None, output_path=None):
     print(f"   Prediction: {'🚨 ACCIDENT' if is_accident else '✅ NORMAL'}")
     print(f"   TTA Predictions: {[f'{p*100:.1f}%' for p in individual_preds]}")
     
-    # Annotate image
-    h, w = frame.shape[:2]
-    color = COLOR_DANGER if is_accident else COLOR_SAFE
-    label = f"{'ACCIDENT' if is_accident else 'NORMAL'}: {confidence*100:.1f}%"
+    # Create display with dashboard
+    stats = {
+        'total_frames': 1,
+        'incidents': 1 if is_accident else 0,
+        'accident_frames': 1 if is_accident else 0,
+        'raw_accidents': 1 if is_accident else 0,
+    }
     
-    cv2.rectangle(frame, (0, 0), (w, 60), color, -1)
-    cv2.putText(frame, label, (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, COLOR_WHITE, 2)
+    display_frame = draw_overlay(
+        frame.copy(), is_accident, is_accident, confidence, confidence,
+        1 if is_accident else 0, 1, 1, 0, stats,
+        use_tta=True, audio_enabled=False
+    )
     
     # Save or display
     if output_path:
-        cv2.imwrite(output_path, frame)
+        cv2.imwrite(output_path, display_frame)
         print(f"\n💾 Saved to: {output_path}")
     else:
-        cv2.imshow('Detection Result', frame)
+        cv2.imshow('Detection Result', display_frame)
         print("\nPress any key to close...")
         cv2.waitKey(0)
         cv2.destroyAllWindows()
