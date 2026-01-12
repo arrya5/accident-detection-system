@@ -39,6 +39,13 @@ try:
 except ImportError:
     AUDIO_AVAILABLE = False
 
+# Email alerts
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import threading
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -60,6 +67,159 @@ AUDIO_ENABLED = False         # Set via command line
 ALERT_FREQUENCY = 1000        # Hz
 ALERT_DURATION = 200          # ms
 MIN_ALERT_INTERVAL = 3.0      # Minimum seconds between alerts
+
+# Email alert settings
+EMAIL_ENABLED = False         # Set via command line
+EMAIL_CONFIG = {
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587,
+    'sender_email': '',       # Set via command line or config
+    'sender_password': '',    # App password for Gmail
+    'recipient_email': '',    # Safety authority email
+    'camera_location': 'Camera 1 - Main Junction'  # Camera/location identifier
+}
+MIN_EMAIL_INTERVAL = 30.0     # Minimum seconds between email alerts (prevent spam)
+
+
+# ============================================================================
+# EMAIL ALERT SYSTEM
+# ============================================================================
+class EmailAlertSystem:
+    """Handles sending email alerts with accident screenshots."""
+    
+    def __init__(self, config: dict):
+        self.config = config
+        self.last_email_time = 0
+        self.email_count = 0
+        self.enabled = False
+        
+        # Validate config
+        if config.get('sender_email') and config.get('sender_password') and config.get('recipient_email'):
+            self.enabled = True
+            print("   📧 Email alerts: Configured")
+        else:
+            print("   📧 Email alerts: Not configured (missing credentials)")
+    
+    def can_send_alert(self) -> bool:
+        """Check if enough time has passed since last email."""
+        if not self.enabled:
+            return False
+        current_time = time.time()
+        return (current_time - self.last_email_time) >= MIN_EMAIL_INTERVAL
+    
+    def send_alert(self, frame: np.ndarray, incident_id: int, confidence: float,
+                   frame_num: int, timestamp: str = None):
+        """
+        Send email alert with accident screenshot (runs in background thread).
+        
+        Args:
+            frame: The accident frame (OpenCV BGR image)
+            incident_id: Unique incident number
+            confidence: Detection confidence
+            frame_num: Frame number where accident detected
+            timestamp: Optional timestamp string
+        """
+        if not self.can_send_alert():
+            return False
+        
+        self.last_email_time = time.time()
+        self.email_count += 1
+        
+        # Run in background thread to not block detection
+        thread = threading.Thread(
+            target=self._send_email_thread,
+            args=(frame.copy(), incident_id, confidence, frame_num, timestamp)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return True
+    
+    def _send_email_thread(self, frame, incident_id, confidence, frame_num, timestamp):
+        """Background thread to send email."""
+        try:
+            if timestamp is None:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = self.config['sender_email']
+            msg['To'] = self.config['recipient_email']
+            msg['Subject'] = f"🚨 ACCIDENT ALERT - Incident #{incident_id} - {self.config['camera_location']}"
+            
+            # Email body with HTML formatting
+            html_body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <div style="background: #ff4444; color: white; padding: 15px; border-radius: 8px;">
+                    <h1 style="margin: 0;">🚨 ACCIDENT DETECTED</h1>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                    <h2>Incident Details</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Incident ID:</strong></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">#{incident_id}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Location:</strong></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{self.config['camera_location']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Timestamp:</strong></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{timestamp}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Detection Confidence:</strong></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{confidence*100:.1f}%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Frame Number:</strong></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">{frame_num}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <h3>📸 Accident Screenshot</h3>
+                    <p>See attached image for visual confirmation.</p>
+                </div>
+                
+                <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
+                    <strong>⚠️ IMMEDIATE ACTION REQUIRED</strong>
+                    <p style="margin: 5px 0 0 0;">Please dispatch emergency services to the location immediately.</p>
+                </div>
+                
+                <hr style="margin-top: 30px;">
+                <p style="color: #666; font-size: 12px;">
+                    This is an automated alert from the Accident Detection System.<br>
+                    Detection powered by AI (MobileNetV2 - 99.80% accuracy)
+                </p>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(html_body, 'html'))
+            
+            # Attach screenshot
+            _, img_encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            img_data = img_encoded.tobytes()
+            
+            image = MIMEImage(img_data, name=f'accident_incident_{incident_id}.jpg')
+            image.add_header('Content-ID', '<accident_image>')
+            msg.attach(image)
+            
+            # Send email
+            with smtplib.SMTP(self.config['smtp_server'], self.config['smtp_port']) as server:
+                server.starttls()
+                server.login(self.config['sender_email'], self.config['sender_password'])
+                server.send_message(msg)
+            
+            print(f"\n   📧 Email alert sent for Incident #{incident_id}")
+            
+        except Exception as e:
+            print(f"\n   ❌ Email failed: {str(e)}")
 
 
 # ============================================================================
@@ -682,7 +842,7 @@ def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
 # MAIN DETECTION LOOP
 # ============================================================================
 def detect_video(source, model_path=None, output_path=None, show_display=True,
-                 enable_logging=False, log_file=None):
+                 enable_logging=False, log_file=None, email_config=None):
     """
     Run accident detection on a video source.
     
@@ -693,12 +853,18 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
         show_display: Whether to show live display
         enable_logging: Whether to log detections to file
         log_file: Path to log file (optional)
+        email_config: Email configuration dict for alerts (optional)
     """
-    global AUDIO_ENABLED
+    global AUDIO_ENABLED, EMAIL_ENABLED
     
     print("\n" + "="*60)
     print("🚗 ACCIDENT DETECTION SYSTEM (PyTorch)")
     print("="*60)
+    
+    # Setup email alerts
+    email_system = None
+    if email_config and EMAIL_ENABLED:
+        email_system = EmailAlertSystem(email_config)
     
     # Setup logging
     if enable_logging:
@@ -826,6 +992,21 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
                         winsound.Beep(ALERT_FREQUENCY, ALERT_DURATION)
                     except:
                         pass
+                
+                # Always save screenshot of incident for evidence/review
+                screenshot_path = f"output/incident_{stats['incidents']}_frame_{frame_num}.jpg"
+                cv2.imwrite(screenshot_path, frame)
+                print(f"\n   📸 Incident #{stats['incidents']} screenshot saved: {screenshot_path}")
+                
+                # Email alert with screenshot (if configured)
+                if email_system and email_system.enabled:
+                    # Send email alert
+                    email_system.send_alert(
+                        frame=frame,
+                        incident_id=stats['incidents'],
+                        confidence=confidence,
+                        frame_num=frame_num
+                    )
             
             # Draw overlay with professional dashboard
             display_frame = draw_overlay(
@@ -1018,13 +1199,38 @@ Controls (during video playback):
     parser.add_argument('--log-file', type=str, default=None,
                         help='Path to log file (default: auto-generated)')
     
+    # Email alert arguments
+    parser.add_argument('--email', action='store_true',
+                        help='Enable email alerts on accident detection')
+    parser.add_argument('--sender-email', type=str, default=None,
+                        help='Sender Gmail address')
+    parser.add_argument('--sender-password', type=str, default=None,
+                        help='Sender Gmail app password (not regular password)')
+    parser.add_argument('--recipient-email', type=str, default=None,
+                        help='Recipient email (safety authority)')
+    parser.add_argument('--camera-location', type=str, default='Camera 1 - Main Junction',
+                        help='Camera/location identifier for alerts')
+    
     args = parser.parse_args()
     
     # Update global settings
-    global CONFIDENCE_THRESHOLD, TTA_ENABLED, AUDIO_ENABLED
+    global CONFIDENCE_THRESHOLD, TTA_ENABLED, AUDIO_ENABLED, EMAIL_ENABLED
     CONFIDENCE_THRESHOLD = args.threshold
     TTA_ENABLED = not args.no_tta
     AUDIO_ENABLED = args.audio
+    EMAIL_ENABLED = args.email
+    
+    # Setup email config
+    email_config = None
+    if args.email:
+        email_config = {
+            'smtp_server': 'smtp.gmail.com',
+            'smtp_port': 587,
+            'sender_email': args.sender_email,
+            'sender_password': args.sender_password,
+            'recipient_email': args.recipient_email,
+            'camera_location': args.camera_location
+        }
     
     try:
         if args.image:
@@ -1038,7 +1244,8 @@ Controls (during video playback):
                 output_path=args.output,
                 show_display=not args.no_display,
                 enable_logging=args.log,
-                log_file=args.log_file
+                log_file=args.log_file,
+                email_config=email_config
             )
     except KeyboardInterrupt:
         print("\n\n⏹️ Interrupted by user")
