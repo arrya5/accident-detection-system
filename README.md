@@ -84,31 +84,7 @@ This work makes the following contributions:
 
 ## 2. Literature Review
 
-### 2.1 Evolution of Accident Detection Methods
-
-```
-
-                    EVOLUTION OF ACCIDENT DETECTION                          
-
-                                                                             
-  1990s              2000s              2010s              2020s             
-                                                                         
-                                                                         
-                                        
- Manual          Sensor           ML             Deep               
- Report Based  Based  Learning           
-                                        
-                                                                             
- Witnesses         Vehicle           SVM, Random       CNN, Transfer        
- Phone Calls       Accelerometers    Forest            Learning             
-                   Loop Detectors    HOG Features      End-to-End           
-                                                                             
- Accuracy: ~60%    Accuracy: ~75%    Accuracy: ~85%    Accuracy: ~99%       
-                                                                             
-
-```
-
-### 2.2 Comparative Analysis of Existing Approaches
+### 2.1 Comparative Analysis of Existing Approaches
 
 | Study | Year | Method | Dataset Size | Accuracy | Limitations |
 |-------|------|--------|--------------|----------|-------------|
@@ -119,31 +95,12 @@ This work makes the following contributions:
 | Chen et al. | 2022 | EfficientNet | 10,000 images | 94.3% | No real-time capability |
 | **This Work** | **2025** | **MobileNetV2 + TTA** | **13,228 images** | **99.80%** | **Real-time with alerts** |
 
-### 2.3 Transfer Learning Advantage
+### 2.2 Transfer Learning Advantage
 
-Transfer learning leverages knowledge from models pre-trained on large datasets (ImageNet: 14M+ images) and fine-tunes them for specific tasks:
-
-```
-
-                         TRANSFER LEARNING PARADIGM                          
-
-                                                                             
-   ImageNet (14M images)              Target Task (13K images)               
-                                   
-     1000 Classes                     Binary: Accident/                  
-     General Objects                  Non-Accident                       
-                                   
-                                                                           
-                                                                           
-        Transfer                      
-      MobileNetV2        Fine-tuned                     
-      Pre-trained        Weights         Classifier                     
-                                      
-                                                                             
-   Benefits:  Faster training   Less data required   Better accuracy     
-                                                                             
-
-```
+Transfer learning leverages knowledge from models pre-trained on large datasets (ImageNet: 14M+ images) and fine-tunes them for specific tasks. Benefits include:
+- **Faster training** with fewer epochs required
+- **Less data required** compared to training from scratch
+- **Better accuracy** by utilizing pre-learned features
 
 ---
 
@@ -151,177 +108,27 @@ Transfer learning leverages knowledge from models pre-trained on large datasets 
 
 ### 3.1 High-Level System Overview
 
-```
+![System Architecture](assets/architecture_system.png)
 
-                     ACCIDENT DETECTION SYSTEM PIPELINE                      
-
-                                                                             
-                
-      INPUT        PREPROCESSING        INFERENCE         OUTPUT    
-     MODULE       MODULE         ENGINE       MODULE    
-                
-                                                                         
-                                                                         
-                            
-    CCTV           Resize           MobileNet        Display    
-    Webcam         Normalize        TTA (5x)         Alerts     
-    Video          Augment          Temporal         Logging    
-    RTSP           Batch             Smoothing        Save       
-                            
-                                                                             
-
-```
+*Figure 1: Complete accident detection system pipeline showing the flow from video input through preprocessing, inference, and output modules.*
 
 ### 3.2 Detailed Processing Pipeline
 
-```
+![Frame Processing Pipeline](assets/architecture_pipeline.png)
 
-                        FRAME PROCESSING PIPELINE                            
-
-                                                                             
-  Frame t                                                                    
-                                                                            
-                                                                            
-                                                         
-   1. PREPROCESSING                                                        
-       Resize to 224224                                                  
-       Convert BGR  RGB                                                  
-       Normalize (ImageNet µ,s)                                           
-       Tensor conversion                                                  
-                                                         
-                                                                            
-                                                         
-   2. TTA ENSEMBLE    Generate 5 augmented versions:                       
-       Original                                                           
-       Horizontal Flip                                                    
-       Brightness +10%                                                    
-       Brightness -10%                                                    
-       Slight Rotation (5)                                              
-                                                         
-                                                                            
-                                                         
-   3. CNN INFERENCE   MobileNetV2 + Custom Classifier                      
-       P(accident) = s(classifier(backbone(x)))                           
-                                                         
-                                                                            
-                                                         
-   4. ENSEMBLE AVG    p_final = mean(p_1, p_2, ..., p_5)                   
-                                                         
-                                                                            
-                                                         
-   5. TEMPORAL        Window of last 7 frames                              
-      SMOOTHING       Require 5/7 positives to confirm                     
-                                                         
-                                                                            
-                                                         
-   6. DECISION        if (smoothed_positive && p > threshold):             
-                          trigger_alert()                                  
-                                                         
-                                                                             
-
-```
+*Figure 2: Step-by-step frame processing pipeline including preprocessing, TTA ensemble, CNN inference, temporal smoothing, and decision logic.*
 
 ### 3.3 Model Architecture
 
-```
+![Model Architecture](assets/architecture_model.png)
 
-                      MOBILENETV2 + CUSTOM CLASSIFIER                        
-
-                                                                             
-  INPUT: RGB Image (224  224  3)                                           
-                                                                            
-                                                                            
-     
-                      MOBILENETV2 BACKBONE                                 
-           
-      Conv2d(332)  BN  ReLU6                                         
-                                                                        
-                                                                        
-                    
-        17 Inverted Residual Blocks                                  
-                            
-          Depthwise Separable Convolutions                          
-           11 Conv (expand)                                       
-           33 Depthwise Conv                                      
-           11 Conv (project)                                      
-           Residual Connection (when stride=1)                     
-                            
-                    
-                                                                        
-                                                                        
-      Conv2d(3201280)  BN  ReLU6                                     
-           
-                                                                          
-                                                                          
-                     Global Average Pooling                                
-                          (1280  1  1)                                   
-     
-                                                                            
-                                                                            
-     
-                      CUSTOM CLASSIFICATION HEAD                           
-                                                                           
-     Flatten (1280)                                                        
-                                                                          
-          Dropout(p=0.5)                                               
-                                                                          
-          Linear(1280  512)  BatchNorm1d  ReLU                      
-                                                                          
-          Dropout(p=0.4)                                               
-                                                                          
-          Linear(512  256)  BatchNorm1d  ReLU                       
-                                                                          
-          Dropout(p=0.3)                                               
-                                                                          
-          Linear(256  128)  BatchNorm1d  ReLU                       
-                                                                          
-          Dropout(p=0.2)                                               
-                                                                          
-          Linear(128  1)  Sigmoid                                    
-                                                                          
-                                                                          
-             P(Accident)  [0, 1]                                          
-     
-                                                                             
-  Total Parameters: 3.2M (Backbone: 2.2M frozen initially)                   
-  Inference Time: ~8ms per frame (RTX 4060)                                  
-                                                                             
-
-```
+*Figure 3: MobileNetV2 backbone with custom classification head architecture. The model uses pre-trained ImageNet weights with a 4-layer classifier.*
 
 ### 3.4 Alert System Architecture
 
-```
+![Alert System](assets/architecture_alert.png)
 
-                         EMAIL ALERT SYSTEM                                  
-
-                                                                             
-  Accident Detected                                                          
-                                                                            
-                                                                            
-                
-     Capture            Generate              Send Email              
-    Screenshot    HTML Report   (Background Thread)         
-                
-                                                                          
-                                                                          
-                
-   incident_           Timestamp         SMTP Server (Gmail)         
-   YYYYMMDD_           Location           TLS Encryption           
-   HHMMSS.jpg          Confidence         App Password Auth        
-         Screenshot         Async Delivery           
-                                
-                                                                            
-                                                                            
-                                  
-                                       SAFETY AUTHORITIES                 
-                                 Traffic Control Center                  
-                                 Emergency Response Teams                
-                                 Hospital Dispatch                       
-                                  
-                                                                             
-
-```
+*Figure 4: Email alert system workflow showing screenshot capture, HTML report generation, and SMTP delivery to safety authorities.*
 
 ---
 
@@ -338,49 +145,7 @@ The dataset was curated from multiple sources to ensure diversity:
 | Kaggle | Public Dataset | Accident Detection from CCTV Footage |
 | Manual Collection | Mixed | Curated from news and safety videos |
 
-### 4.2 Frame Extraction Pipeline
-
-```
-
-                      DATA PREPROCESSING PIPELINE                            
-
-                                                                             
-  Raw Videos                                                                 
-                                                                            
-                                                                            
-                                                           
-   Frame Extract    Extract at 2 FPS (reduce redundancy)                   
-   (2 FPS)                                                                 
-                                                           
-                                                                            
-                                                                            
-                                                           
-   Blur Detection   Laplacian variance < 100  Reject                      
-                    (Remove motion blur, out-of-focus)                     
-                                                           
-                                                                            
-                                                                            
-                                                           
-   Manual Review    Human verification of labels                           
-   & Labeling       Accident vs Non-Accident                               
-                                                           
-                                                                            
-                                                                            
-                                                           
-   Class Balance    Undersample majority class                             
-                    Equal Accident : Non-Accident ratio                    
-                                                           
-                                                                            
-                                                                            
-                                                           
-   Train/Val/Test   70% / 15% / 15% stratified split                       
-   Split                                                                   
-                                                           
-                                                                             
-
-```
-
-### 4.3 Dataset Statistics
+### 4.2 Dataset Statistics
 
 | Split | Accident | Non-Accident | Total | Percentage |
 |-------|----------|--------------|-------|------------|
@@ -389,18 +154,14 @@ The dataset was curated from multiple sources to ensure diversity:
 | Test | 993 | 993 | 1,986 | 15.0% |
 | **Total** | **6,614** | **6,614** | **13,228** | **100%** |
 
-### 4.4 Sample Images
+### 4.3 Sample Images
 
 <table>
 <tr>
-<td colspan="2" align="center"><b>Accident Class</b></td>
-<td colspan="2" align="center"><b>Non-Accident Class</b></td>
-</tr>
-<tr>
 <td><img src="assets/accident_detection_1.jpg" alt="Accident 1" width="200"/></td>
 <td><img src="assets/accident_detection_2.jpg" alt="Accident 2" width="200"/></td>
-<td><img src="assets/accident_detection_3.jpg" alt="Normal 1" width="200"/></td>
-<td><img src="assets/accident_detection_4.jpg" alt="Normal 2" width="200"/></td>
+<td><img src="assets/accident_detection_3.jpg" alt="Accident 3" width="200"/></td>
+<td><img src="assets/accident_detection_4.jpg" alt="Accident 4" width="200"/></td>
 </tr>
 <tr>
 <td align="center">Vehicle Collision</td>
@@ -409,6 +170,8 @@ The dataset was curated from multiple sources to ensure diversity:
 <td align="center">Post-collision</td>
 </tr>
 </table>
+
+*Figure 5: Sample accident detection frames from CCTV footage showing various collision scenarios.*
 
 ---
 
@@ -423,48 +186,13 @@ We employ MobileNetV2 pre-trained on ImageNet as our backbone, chosen for:
 | Parameters | 3.4M | 138M | 25.6M |
 | Inference Time | 8ms | 45ms | 22ms |
 | Accuracy (Ours) | **99.80%** | 94.2% | 96.1% |
-| Mobile Deployment |  |  |  |
+| Mobile Deployment | Yes | No | No |
 
 ### 5.2 Three-Phase Progressive Fine-tuning
 
-```
+![Training Strategy](assets/architecture_training.png)
 
-                    3-PHASE TRAINING STRATEGY                                
-
-                                                                             
-  PHASE 1: Feature Extraction (Epochs 1-10)                                  
-     
-    MobileNetV2 Backbone        Custom Classifier                        
-                                     
-    [FROZEN - No Updates]       [TRAINABLE - LR=0.001]                   
-     
-  Goal: Learn task-specific features in classifier head                     
-  Result: Val Accuracy = 99.85%                                              
-                                                                             
-     
-                                                                             
-  PHASE 2: Partial Fine-tuning (Epochs 11-20)                                
-     
-    Backbone (Bottom)    Backbone (Top 50)      Classifier             
-                               
-    [FROZEN]             [TRAINABLE-LR=1e-4]    [TRAINABLE]            
-     
-  Goal: Adapt high-level features to accident domain                        
-  Result: Val Accuracy = 99.95%                                              
-                                                                             
-     
-                                                                             
-  PHASE 3: Full Fine-tuning (Epochs 21-30)                                   
-     
-    MobileNetV2 Backbone                     Custom Classifier           
-                        
-    [TRAINABLE - LR=1e-5]                    [TRAINABLE - LR=1e-5]       
-     
-  Goal: Fine-grained optimization of entire network                         
-  Result: Val Accuracy = 100.00%, Test Accuracy = 99.80%                     
-                                                                             
-
-```
+*Figure 6: Three-phase progressive fine-tuning strategy. Phase 1 trains only the classifier, Phase 2 unfreezes top layers, Phase 3 fine-tunes all layers.*
 
 ### 5.3 Data Augmentation
 
@@ -473,76 +201,41 @@ To improve generalization and prevent overfitting:
 | Augmentation | Parameters | Purpose |
 |--------------|------------|---------|
 | Random Horizontal Flip | p=0.5 | Mirror invariance |
-| Random Rotation | 15 | Orientation robustness |
-| Color Jitter | Brightness 20%, Contrast 20% | Lighting variation |
-| Random Affine | Translate 10%, Scale 0.9-1.1 | Position invariance |
-| Gaussian Blur | Kernel 33, s=0.1-2.0 | Noise robustness |
+| Random Rotation | +/-15 degrees | Orientation robustness |
+| Color Jitter | Brightness +/-20%, Contrast +/-20% | Lighting variation |
+| Random Affine | Translate +/-10%, Scale 0.9-1.1 | Position invariance |
+| Gaussian Blur | Kernel 3x3 | Noise robustness |
 
-### 5.4 Temporal Smoothing Algorithm
+### 5.4 Test-Time Augmentation (TTA)
+
+![TTA Architecture](assets/architecture_tta.png)
+
+*Figure 7: Test-Time Augmentation ensemble. Five augmented versions are processed and averaged for more robust predictions.*
+
+### 5.5 Temporal Smoothing Algorithm
 
 ```
 Algorithm: Temporal Smoothing for Accident Detection
-
+-------------------------------------------------------
 Input: Frame predictions p_t for t = 1, 2, ..., T
-Parameters: window_size W = 7, threshold ? = 0.85, min_positive M = 5
+Parameters: window_size W = 7, threshold T = 0.85, min_positive M = 5
 
 Initialize: prediction_buffer = []
             current_incident = False
 
 For each frame t:
-    1. p_t  model.predict(frame_t)                    # Raw prediction
-    
-    2. prediction_buffer.append(p_t > ?)               # Binary decision
-    
+    1. p_t = model.predict(frame_t)              # Raw prediction
+    2. prediction_buffer.append(p_t > T)         # Binary decision
     3. if len(prediction_buffer) > W:
-           prediction_buffer.pop(0)                    # Sliding window
-    
-    4. positive_count  sum(prediction_buffer)
-    
+           prediction_buffer.pop(0)              # Sliding window
+    4. positive_count = sum(prediction_buffer)
     5. if positive_count >= M and not current_incident:
-           TRIGGER_ALERT()                             # New incident
-           current_incident  True
-    
-    6. if positive_count < 2:                          # Incident ended
-           current_incident  False
+           TRIGGER_ALERT()                       # New incident
+           current_incident = True
+    6. if positive_count < 2:                    # Incident ended
+           current_incident = False
 
 Output: Smoothed accident detection with reduced false positives
-```
-
-### 5.5 Test-Time Augmentation (TTA)
-
-```
-
-                    TEST-TIME AUGMENTATION (TTA)                             
-
-                                                                             
-                         Original Frame                                      
-                                                                            
-                                       
-                                                                       
-                                                                       
-                                        
-         Orig  HFlip Brt+  Brt-  Rot                             
-                     +10%  -10%  5                             
-                                        
-                                                                       
-                                                                       
-                                        
-          p_1   p_2   p_3   p_4   p_5    CNN Predictions         
-         0.92  0.89  0.95  0.88  0.91                            
-                                        
-                                                                       
-                                           
-                                                                            
-                                                                            
-                                                              
-                       Average                                             
-                      p = 0.91      Final Prediction                       
-                                                              
-                                                                             
-  Benefit: Reduces prediction variance by ~40%, improves robustness          
-                                                                             
-
 ```
 
 ---
@@ -584,7 +277,7 @@ total_epochs = 30
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| Input Resolution | 224  224 | Model input size |
+| Input Resolution | 224 x 224 | Model input size |
 | Confidence Threshold | 0.85 | Minimum P(accident) to flag |
 | Temporal Window | 7 frames | Sliding window size |
 | Required Positives | 5/7 | Minimum for confirmation |
@@ -595,27 +288,7 @@ total_epochs = 30
 
 ## 7. Experimental Results
 
-### 7.1 Training Curves
-
-```
-Accuracy vs Epochs
-100%                           
-                         
- 95%               
-              
- 90%      
-        
- 85%   
-      
- 80% 
-     
-       0    5    10   15   20   25   30  Epochs
-       
-        Phase 1   Phase 2    Phase 3  
-       
-```
-
-### 7.2 Phase-wise Performance
+### 7.1 Phase-wise Performance
 
 | Phase | Learning Rate | Layers Trained | Val Accuracy | Val Loss |
 |-------|---------------|----------------|--------------|----------|
@@ -623,7 +296,7 @@ Accuracy vs Epochs
 | Phase 2 | 1e-4 | Top 50 + Classifier | 99.95% | 0.0045 |
 | Phase 3 | 1e-5 | All layers | 100.00% | 0.0021 |
 
-### 7.3 Test Set Evaluation
+### 7.2 Test Set Evaluation
 
 #### Classification Metrics
 
@@ -633,26 +306,18 @@ Accuracy vs Epochs
 | **Precision** | TP / (TP + FP) | **100.00%** |
 | **Recall (Sensitivity)** | TP / (TP + FN) | **99.60%** |
 | **Specificity** | TN / (TN + FP) | **100.00%** |
-| **F1-Score** | 2  (Precision  Recall) / (Precision + Recall) | **99.80%** |
+| **F1-Score** | 2 x (Precision x Recall) / (Precision + Recall) | **99.80%** |
 
 #### Confusion Matrix
 
-```
-                          Predicted Class
-                    
-                      Accident      Normal    
-        
-         Accident       989           4         Recall: 99.60%
-Actual                 (TP)         (FN)     
-Class   
-          Normal         0           993        Specificity: 100%
-                       (FP)         (TN)     
-        
-                    Precision:       NPV:
-                      100%           99.60%
-```
+|  | Predicted: Accident | Predicted: Normal |
+|--|---------------------|-------------------|
+| **Actual: Accident** | 989 (TP) | 4 (FN) |
+| **Actual: Normal** | 0 (FP) | 993 (TN) |
 
-### 7.4 Real-time Performance
+*Table: Confusion matrix on test set (n=1,986). Only 4 false negatives, zero false positives.*
+
+### 7.3 Real-time Performance
 
 | Metric | Value |
 |--------|-------|
@@ -663,18 +328,11 @@ Class
 | GPU Memory Usage | 1.2 GB |
 | Alert Trigger Time | < 2 seconds |
 
-### 7.5 Dashboard Interface
-
-The system provides a professional real-time monitoring dashboard:
+### 7.4 Dashboard Interface
 
 ![Dashboard Demo](assets/dashboard_demo.jpg)
 
-**Dashboard Components:**
-- **Status Banner**: Color-coded alert ( Normal /  Possible /  Accident)
-- **Confidence Metrics**: Current and rolling average prediction confidence
-- **Detection Statistics**: Total incidents, accident frames, detection rate
-- **Temporal Visualization**: 7-frame prediction history window
-- **System Information**: FPS, video progress, threshold settings
+*Figure 8: Real-time monitoring dashboard showing status banner, confidence metrics, detection statistics, and temporal analysis visualization.*
 
 ---
 
@@ -781,9 +439,9 @@ python src/verify_model_pytorch.py --data_path data --plot --export
 
 | Limitation | Description | Potential Solution |
 |------------|-------------|-------------------|
-| **Chaotic Traffic** | Dense/erratic traffic patterns (common in developing countries) may trigger false positives | Fine-tune on region-specific data |
-| **Training Data Bias** | Model trained primarily on Western traffic patterns | Expand dataset with diverse geographic coverage |
-| **Lighting Conditions** | Performance may vary in extreme lighting (night, glare) | Add low-light augmentation, HDR processing |
+| **Chaotic Traffic** | Dense/erratic traffic patterns may trigger false positives | Fine-tune on region-specific data |
+| **Training Data Bias** | Model trained primarily on Western traffic patterns | Expand dataset with diverse coverage |
+| **Lighting Conditions** | Performance may vary in extreme lighting | Add low-light augmentation |
 | **Camera Angle Dependency** | Optimized for overhead/side CCTV views | Train on multi-angle dataset |
 | **Occlusion Handling** | Partially hidden accidents may not be detected | Integrate object tracking |
 
@@ -846,5 +504,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-Made with  for Road Safety
+Made with love for Road Safety
 </p>
