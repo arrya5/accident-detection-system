@@ -10,7 +10,22 @@ Features:
 - Temporal smoothing to reduce false positives
 - Support for webcam, video files, and RTSP streams
 - Visual overlay with detection status and statistics
-- Incident counting (distinct accidents, not frames)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 - Optional audio alerts
 - Detection logging to file
 
@@ -585,241 +600,203 @@ def draw_circular_gauge(img, center_x, center_y, radius, value, max_value=1.0,
 
 def draw_metric_card(panel, x, y, width, height, title, value, unit="",
                      icon="", value_color=TEXT_PRIMARY):
-    """Draw a metric card with title and value."""
-    # Card background
+    """Draw a metric card with title and value (kept for compatibility)."""
     cv2.rectangle(panel, (x, y), (x + width, y + height), PANEL_HEADER, -1)
     cv2.rectangle(panel, (x, y), (x + width, y + height), DIVIDER_COLOR, 1)
-    
-    # Title
     cv2.putText(panel, title, (x + 10, y + 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    
-    # Value
     value_text = f"{value}{unit}"
     cv2.putText(panel, value_text, (x + 10, y + height - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, value_color, 2)
+
+
+def draw_stat_card(panel, x, y, w, h, title, value, value_color=TEXT_PRIMARY):
+    """Draw a compact stat card for the redesigned dashboard."""
+    cv2.rectangle(panel, (x, y), (x + w, y + h), PANEL_HEADER, -1)
+    cv2.rectangle(panel, (x, y), (x + w, y + h), DIVIDER_COLOR, 1)
+    cv2.putText(panel, title, (x + 6, y + 14),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.33, TEXT_SECONDARY, 1)
+    cv2.putText(panel, str(value), (x + 6, y + h - 8),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.60, value_color, 2)
 
 
 def create_dashboard(frame, is_confirmed, is_raw, confidence, avg_confidence,
                      recent_count, frame_num, total_frames, fps, stats,
                      use_tta=True, audio_enabled=False):
     """
-    Create a professional dashboard with side panel showing all metrics.
-    
-    Returns:
-        Combined frame with video and dashboard panel
+    Compact dashboard panel with pixel-precise sequential y layout.
+
+    Every section is sized carefully so all content fits within any
+    video frame height without text overlapping.
+
+    Layout (for a 352-px tall frame):
+        0  – 40  Header
+        42 – 78  Status banner
+        88 – 153 Confidence metrics
+        160 – 267 Detection statistics (2x2 cards)
+        274 – 309 Temporal analysis
+        316 – 346 Footer (FPS / TTA / progress / controls)
     """
     h, w = frame.shape[:2]
-    
-    # Create dashboard panel
+
     panel = np.zeros((h, DASHBOARD_WIDTH, 3), dtype=np.uint8)
     panel[:] = PANEL_BG
-    
-    # ===== HEADER =====
-    cv2.rectangle(panel, (0, 0), (DASHBOARD_WIDTH, HEADER_HEIGHT), PANEL_HEADER, -1)
-    cv2.putText(panel, "ACCIDENT DETECTION", (15, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, ACCENT_BLUE, 2)
-    cv2.putText(panel, "Real-time Monitoring System", (15, 52),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    
-    # Divider
-    cv2.line(panel, (0, HEADER_HEIGHT), (DASHBOARD_WIDTH, HEADER_HEIGHT), DIVIDER_COLOR, 1)
-    
-    y_offset = HEADER_HEIGHT + SECTION_PADDING
-    
-    # ===== STATUS SECTION =====
+
+    # ── resolve status strings once ──────────────────────────────────────
     if is_confirmed:
-        status_text = "ACCIDENT DETECTED"
-        status_color = ACCENT_RED
-        status_bg = (40, 40, 80)
+        status_text  = "ACCIDENT DETECTED"
+        s_color      = ACCENT_RED
+        s_bg         = (55, 25, 85)
+        banner_color = (0, 0, 160)
     elif is_raw:
-        status_text = "POSSIBLE ACCIDENT"
-        status_color = ACCENT_ORANGE
-        status_bg = (40, 60, 80)
+        status_text  = "POSSIBLE ACCIDENT"
+        s_color      = ACCENT_ORANGE
+        s_bg         = (35, 50, 85)
+        banner_color = (0, 90, 160)
     else:
-        status_text = "NORMAL TRAFFIC"
-        status_color = ACCENT_GREEN
-        status_bg = (40, 60, 40)
-    
-    # Status banner
-    cv2.rectangle(panel, (10, y_offset), (DASHBOARD_WIDTH - 10, y_offset + 45), status_bg, -1)
-    cv2.rectangle(panel, (10, y_offset), (DASHBOARD_WIDTH - 10, y_offset + 45), status_color, 2)
-    cv2.putText(panel, status_text, (20, y_offset + 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
-    
-    y_offset += 60
-    
-    # ===== CONFIDENCE SECTION =====
-    cv2.putText(panel, "CONFIDENCE METRICS", (15, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 10
-    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
-    y_offset += 15
-    
-    # Current confidence with gauge
-    gauge_color = ACCENT_RED if confidence > 0.6 else ACCENT_ORANGE if confidence > 0.4 else ACCENT_GREEN
-    cv2.putText(panel, "Current", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    draw_progress_bar(panel, 80, y_offset, 140, 18, confidence, fill_color=gauge_color)
-    cv2.putText(panel, f"{confidence*100:.1f}%", (230, y_offset + 14),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, gauge_color, 1)
-    y_offset += 30
-    
-    # Average confidence
-    avg_color = ACCENT_RED if avg_confidence > 0.6 else ACCENT_ORANGE if avg_confidence > 0.4 else ACCENT_GREEN
-    cv2.putText(panel, "Average", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    draw_progress_bar(panel, 80, y_offset, 140, 18, avg_confidence, fill_color=avg_color)
-    cv2.putText(panel, f"{avg_confidence*100:.1f}%", (230, y_offset + 14),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, avg_color, 1)
-    y_offset += 30
-    
-    # Threshold indicator
-    cv2.putText(panel, "Threshold", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    cv2.putText(panel, f"{CONFIDENCE_THRESHOLD*100:.0f}%", (230, y_offset + 14),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_PRIMARY, 1)
-    y_offset += 40
-    
-    # ===== DETECTION STATISTICS =====
-    cv2.putText(panel, "DETECTION STATISTICS", (15, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 10
-    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
-    y_offset += 15
-    
-    # Metric cards in 2x2 grid
-    card_w = 140
-    card_h = 55
-    
-    # Incidents (distinct accidents)
-    incident_color = ACCENT_RED if stats['incidents'] > 0 else ACCENT_GREEN
-    draw_metric_card(panel, 10, y_offset, card_w, card_h, "INCIDENTS", 
-                     stats['incidents'], value_color=incident_color)
-    
-    # Accident frames
-    draw_metric_card(panel, 160, y_offset, card_w, card_h, "ACCIDENT FRAMES", 
-                     stats['accident_frames'], value_color=ACCENT_ORANGE if stats['accident_frames'] > 0 else TEXT_PRIMARY)
-    y_offset += card_h + 10
-    
-    # Total frames
-    draw_metric_card(panel, 10, y_offset, card_w, card_h, "TOTAL FRAMES", 
-                     stats['total_frames'], value_color=TEXT_PRIMARY)
-    
-    # Accident rate
-    accident_rate = (stats['accident_frames'] / max(stats['total_frames'], 1)) * 100
-    rate_color = ACCENT_RED if accident_rate > 10 else ACCENT_ORANGE if accident_rate > 5 else ACCENT_GREEN
-    draw_metric_card(panel, 160, y_offset, card_w, card_h, "ACCIDENT RATE", 
-                     f"{accident_rate:.1f}", unit="%", value_color=rate_color)
-    y_offset += card_h + 20
-    
-    # ===== TEMPORAL ANALYSIS =====
-    cv2.putText(panel, "TEMPORAL ANALYSIS", (15, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 10
-    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
-    y_offset += 15
-    
-    # Temporal window visualization
-    cv2.putText(panel, f"Window: {recent_count}/{TEMPORAL_WINDOW} frames", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_PRIMARY, 1)
-    y_offset += 25
-    
-    # Visual representation of temporal window
-    block_width = 50
-    block_height = 20
+        status_text  = "NORMAL TRAFFIC"
+        s_color      = ACCENT_GREEN
+        s_bg         = (20, 58, 20)
+        banner_color = (0, 100, 0)
+
+    # ── HEADER  (0 → 40 px) ──────────────────────────────────────────────
+    cv2.rectangle(panel, (0, 0), (DASHBOARD_WIDTH, 40), PANEL_HEADER, -1)
+    cv2.putText(panel, "ACCIDENT DETECTION", (10, 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.50, ACCENT_BLUE, 1)
+    cv2.putText(panel, "AI Real-time Monitoring", (10, 33),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    cv2.line(panel, (0, 40), (DASHBOARD_WIDTH, 40), DIVIDER_COLOR, 1)
+
+    y = 42  # ← running y cursor, advances after every section
+
+    # ── STATUS BANNER  (~36 px) ──────────────────────────────────────────
+    cv2.rectangle(panel, (8, y), (DASHBOARD_WIDTH - 8, y + 36), s_bg, -1)
+    cv2.rectangle(panel, (8, y), (DASHBOARD_WIDTH - 8, y + 36), s_color, 2)
+    cv2.putText(panel, status_text, (16, y + 24),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, s_color, 2)
+    y += 40
+
+    cv2.line(panel, (8, y), (DASHBOARD_WIDTH - 8, y), DIVIDER_COLOR, 1)
+    y += 6
+
+    # ── CONFIDENCE METRICS ───────────────────────────────────────────────
+    cv2.putText(panel, "CONFIDENCE METRICS", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    y += 14
+
+    # current
+    ga_color = (ACCENT_RED if confidence > 0.6
+                else ACCENT_ORANGE if confidence > 0.4
+                else ACCENT_GREEN)
+    cv2.putText(panel, "Now", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    draw_progress_bar(panel, 45, y + 1, 175, 12, confidence, fill_color=ga_color)
+    cv2.putText(panel, f"{confidence * 100:.0f}%", (228, y + 11),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.40, ga_color, 1)
+    y += 18
+
+    # average
+    av_color = (ACCENT_RED if avg_confidence > 0.6
+                else ACCENT_ORANGE if avg_confidence > 0.4
+                else ACCENT_GREEN)
+    cv2.putText(panel, "Avg", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    draw_progress_bar(panel, 45, y + 1, 175, 12, avg_confidence, fill_color=av_color)
+    cv2.putText(panel, f"{avg_confidence * 100:.0f}%", (228, y + 11),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.40, av_color, 1)
+    y += 18
+
+    # threshold
+    cv2.putText(panel, f"Threshold: {CONFIDENCE_THRESHOLD * 100:.0f}%", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    y += 16
+
+    cv2.line(panel, (8, y), (DASHBOARD_WIDTH - 8, y), DIVIDER_COLOR, 1)
+    y += 6
+
+    # ── DETECTION STATISTICS (2 x 2 cards) ──────────────────────────────
+    cv2.putText(panel, "DETECTION STATISTICS", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    y += 14
+
+    cw, ch = 149, 42          # card width / height
+    cx2    = 8 + cw + 6       # right-column x = 163
+
+    inc_color = ACCENT_RED if stats["incidents"] > 0 else ACCENT_GREEN
+    af_color  = ACCENT_ORANGE if stats["accident_frames"] > 0 else TEXT_PRIMARY
+    draw_stat_card(panel, 8,   y, cw, ch,
+                   "INCIDENTS",     str(stats["incidents"]),       inc_color)
+    draw_stat_card(panel, cx2, y, cw, ch,
+                   "ACCID. FRAMES", str(stats["accident_frames"]), af_color)
+    y += ch + 5
+
+    accident_rate = (stats["accident_frames"] /
+                     max(stats["total_frames"], 1)) * 100
+    r_color = (ACCENT_RED if accident_rate > 10
+               else ACCENT_ORANGE if accident_rate > 5
+               else ACCENT_GREEN)
+    draw_stat_card(panel, 8,   y, cw, ch,
+                   "TOTAL FRAMES", str(stats["total_frames"]), TEXT_PRIMARY)
+    draw_stat_card(panel, cx2, y, cw, ch,
+                   "ACCID. RATE",  f"{accident_rate:.1f}%",    r_color)
+    y += ch + 5
+
+    cv2.line(panel, (8, y), (DASHBOARD_WIDTH - 8, y), DIVIDER_COLOR, 1)
+    y += 6
+
+    # ── TEMPORAL ANALYSIS ────────────────────────────────────────────────
+    cv2.putText(panel, "TEMPORAL ANALYSIS", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_SECONDARY, 1)
+    cv2.putText(panel, f"{recent_count}/{TEMPORAL_WINDOW} positive",
+                (DASHBOARD_WIDTH - 88, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, TEXT_PRIMARY, 1)
+    y += 14
+
+    bw = (DASHBOARD_WIDTH - 20 - (TEMPORAL_WINDOW - 1) * 3) // TEMPORAL_WINDOW
     for i in range(TEMPORAL_WINDOW):
-        x = 20 + i * (block_width + 5)
-        if i < recent_count:
-            color = ACCENT_RED
-        else:
-            color = (80, 80, 80)
-        cv2.rectangle(panel, (x, y_offset), (x + block_width, y_offset + block_height), color, -1)
-        cv2.rectangle(panel, (x, y_offset), (x + block_width, y_offset + block_height), (100, 100, 100), 1)
-    y_offset += 40
-    
-    # ===== SYSTEM INFO =====
-    cv2.putText(panel, "SYSTEM INFO", (15, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 10
-    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
-    y_offset += 15
-    
-    # FPS
-    fps_color = ACCENT_GREEN if fps >= 25 else ACCENT_ORANGE if fps >= 15 else ACCENT_RED
-    cv2.putText(panel, f"FPS: {fps:.1f}", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, fps_color, 1)
-    
-    # Progress (for video files)
-    if total_frames > 0:
-        progress = frame_num / total_frames
-        cv2.putText(panel, f"Progress: {progress*100:.1f}%", (150, y_offset + 12),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_PRIMARY, 1)
-    y_offset += 25
-    
-    # Frame counter
-    frame_text = f"Frame: {frame_num}"
-    if total_frames > 0:
-        frame_text += f" / {total_frames}"
-    cv2.putText(panel, frame_text, (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 35
-    
-    # ===== SETTINGS =====
-    cv2.putText(panel, "SETTINGS", (15, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, TEXT_SECONDARY, 1)
-    y_offset += 10
-    cv2.line(panel, (15, y_offset), (DASHBOARD_WIDTH - 15, y_offset), DIVIDER_COLOR, 1)
-    y_offset += 15
-    
-    # TTA status
+        bx    = 10 + i * (bw + 3)
+        color = ACCENT_RED if i < recent_count else (65, 65, 65)
+        cv2.rectangle(panel, (bx, y), (bx + bw, y + 16), color, -1)
+        cv2.rectangle(panel, (bx, y), (bx + bw, y + 16), (100, 100, 100), 1)
+    y += 22
+
+    cv2.line(panel, (8, y), (DASHBOARD_WIDTH - 8, y), DIVIDER_COLOR, 1)
+    y += 6
+
+    # ── FOOTER: FPS | TTA | Progress ─────────────────────────────────────
+    fps_color = (ACCENT_GREEN if fps >= 25
+                 else ACCENT_ORANGE if fps >= 15
+                 else ACCENT_RED)
+    cv2.putText(panel, f"FPS: {fps:.1f}", (10, y + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.42, fps_color, 1)
+
     tta_color = ACCENT_GREEN if use_tta else TEXT_SECONDARY
-    tta_text = "ON" if use_tta else "OFF"
-    cv2.putText(panel, f"TTA: {tta_text}", (20, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, tta_color, 1)
-    
-    # Audio status
-    audio_color = ACCENT_GREEN if audio_enabled else TEXT_SECONDARY
-    audio_text = "ON" if audio_enabled else "OFF"
-    cv2.putText(panel, f"Audio: {audio_text}", (120, y_offset + 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, audio_color, 1)
-    y_offset += 35
-    
-    # ===== CONTROLS (at bottom) =====
-    controls_y = h - 60
-    cv2.line(panel, (0, controls_y - 10), (DASHBOARD_WIDTH, controls_y - 10), DIVIDER_COLOR, 1)
-    cv2.putText(panel, "CONTROLS", (15, controls_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, TEXT_SECONDARY, 1)
-    cv2.putText(panel, "[Q] Quit  [S] Screenshot", (15, controls_y + 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, TEXT_SECONDARY, 1)
-    cv2.putText(panel, "[T] Toggle TTA  [A] Audio", (15, controls_y + 38),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, TEXT_SECONDARY, 1)
-    
-    # ===== ADD STATUS INDICATOR ON VIDEO FRAME =====
-    video_frame = frame.copy()
-    
-    # Status banner on video
-    banner_h = 50
-    overlay = video_frame.copy()
-    if is_confirmed:
-        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 0, 180), -1)
-    elif is_raw:
-        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 120, 180), -1)
+    cv2.putText(panel, f"TTA: {'ON' if use_tta else 'OFF'}", (94, y + 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.40, tta_color, 1)
+
+    if total_frames > 0:
+        progress = frame_num / total_frames * 100
+        cv2.putText(panel, f"{progress:.0f}%  Fr.{frame_num}", (163, y + 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, TEXT_PRIMARY, 1)
     else:
-        cv2.rectangle(overlay, (0, 0), (w, banner_h), (0, 120, 0), -1)
-    cv2.addWeighted(overlay, 0.6, video_frame, 0.4, 0, video_frame)
-    
-    cv2.putText(video_frame, status_text, (15, 35),
+        cv2.putText(panel, f"Frame {frame_num}", (163, y + 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, TEXT_PRIMARY, 1)
+    y += 20
+
+    cv2.putText(panel, "Q:Quit  S:Save  T:TTA  A:Audio", (10, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.30, TEXT_SECONDARY, 1)
+
+    # ── VIDEO FRAME OVERLAY ──────────────────────────────────────────────
+    video_frame = frame.copy()
+    overlay     = video_frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, 44), banner_color, -1)
+    cv2.addWeighted(overlay, 0.55, video_frame, 0.45, 0, video_frame)
+    cv2.putText(video_frame, status_text, (12, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255, 255, 255), 2)
+    cv2.putText(video_frame, f"{confidence * 100:.0f}%", (w - 75, 32),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-    
-    # Confidence on video
-    cv2.putText(video_frame, f"{confidence*100:.0f}%", (w - 80, 38),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
-    
-    # Combine video and panel
-    combined = np.hstack([video_frame, panel])
-    
-    return combined
+
+    return np.hstack([video_frame, panel])
 
 
 def draw_overlay(frame, is_confirmed, is_raw, confidence, avg_confidence,
@@ -857,6 +834,11 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
     """
     global AUDIO_ENABLED, EMAIL_ENABLED
     
+    # Define absolute path for the output directory to avoid ambiguity
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, '..', 'output')
+    os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
+
     print("\n" + "="*60)
     print("🚗 ACCIDENT DETECTION SYSTEM (PyTorch)")
     print("="*60)
@@ -994,7 +976,7 @@ def detect_video(source, model_path=None, output_path=None, show_display=True,
                         pass
                 
                 # Always save screenshot of incident for evidence/review
-                screenshot_path = f"output/incident_{stats['incidents']}_frame_{frame_num}.jpg"
+                screenshot_path = os.path.join(output_dir, f"incident_{stats['incidents']}_frame_{frame_num}.jpg")
                 cv2.imwrite(screenshot_path, frame)
                 print(f"\n   📸 Incident #{stats['incidents']} screenshot saved: {screenshot_path}")
                 
@@ -1214,23 +1196,19 @@ Controls (during video playback):
     args = parser.parse_args()
     
     # Update global settings
-    global CONFIDENCE_THRESHOLD, TTA_ENABLED, AUDIO_ENABLED, EMAIL_ENABLED
+    global CONFIDENCE_THRESHOLD, TTA_ENABLED, AUDIO_ENABLED, EMAIL_ENABLED, EMAIL_CONFIG
     CONFIDENCE_THRESHOLD = args.threshold
     TTA_ENABLED = not args.no_tta
-    AUDIO_ENABLED = args.audio
-    EMAIL_ENABLED = args.email
+    if args.audio: AUDIO_ENABLED = True
+    if args.email: EMAIL_ENABLED = True
     
     # Setup email config
-    email_config = None
-    if args.email:
-        email_config = {
-            'smtp_server': 'smtp.gmail.com',
-            'smtp_port': 587,
-            'sender_email': args.sender_email,
-            'sender_password': args.sender_password,
-            'recipient_email': args.recipient_email,
-            'camera_location': args.camera_location
-        }
+    email_config = EMAIL_CONFIG.copy()
+    if args.sender_email: email_config['sender_email'] = args.sender_email
+    if args.sender_password: email_config['sender_password'] = args.sender_password
+    if args.recipient_email: email_config['recipient_email'] = args.recipient_email
+    if args.camera_location and args.camera_location != 'Camera 1 - Main Junction':
+        email_config['camera_location'] = args.camera_location
     
     try:
         if args.image:
