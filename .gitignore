@@ -7,6 +7,14 @@ __pycache__/
 venv/
 env/
 .env/
+.venv/
+
+# Kaggle cache
+.cache/
+
+# Temp / one-off files
+Command
+*.tmp
 
 # IDE settings
 .vscode/
