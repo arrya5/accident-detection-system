@@ -491,7 +491,7 @@ The system demonstrates the viability of deep learning for automated traffic saf
 
 ## Authors
 
-**Arya Bhardwaj**  
+**Arrya Thakur**  
 B.Tech Computer Science  
 Minor Project - Real-Time Road Accident Detection System
 
