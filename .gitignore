@@ -33,9 +33,15 @@ data/
 *.mov
 
 # Model files (use Git LFS or releases for large files)
-# Uncomment if model is too large
-# models/*.keras
-# models/*.h5
+*.pth
+*.keras
+*.h5
+
+# Secrets / credentials (NEVER commit these)
+credentials.json
+token.json
+*.json.key
+.env
 
 # Logs and temporary files
 logs/
