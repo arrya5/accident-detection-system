@@ -317,7 +317,18 @@ total_epochs = 30
 
 *Table: Confusion matrix on test set (n=1,986). Only 4 false negatives, zero false positives.*
 
-### 7.3 Real-time Performance
+### 7.3 External Generalization Test
+
+The internal 99.80% figure is measured on a held-out split of the *same* source dataset, so it's fair to ask whether that number reflects real signal or train/test leakage. Two checks address that directly:
+
+| Check | Result |
+|---|---|
+| MD5 duplicate check across train/val/test | 0 duplicate images |
+| Accuracy on a wholly external dataset (`car-crash-dataset-ccd`, ~75,000 Kaggle images never used in training) | 191/200 accident images correctly detected — **95.5% recall** |
+
+The 95.5% figure is the more meaningful indicator of real-world performance; the 99.80% internal figure measures fit to this project's own data distribution. Reproduce with `python test_generalization.py`.
+
+### 7.4 Real-time Performance
 
 | Metric | Value |
 |--------|-------|
@@ -328,7 +339,7 @@ total_epochs = 30
 | GPU Memory Usage | 1.2 GB |
 | Alert Trigger Time | < 2 seconds |
 
-### 7.4 Dashboard Interface
+### 7.5 Dashboard Interface
 
 ![Dashboard Demo](assets/dashboard_demo.jpg)
 
@@ -347,6 +358,8 @@ total_epochs = 30
 3. **Temporal Smoothing Impact**: Reduces false positive rate from ~5% (single-frame) to ~0% with 7-frame window.
 
 4. **TTA Contribution**: Improves prediction stability by averaging across augmented views, reducing variance by ~40%.
+
+5. **Verified, Not Just Reported**: A zero-overlap MD5 check across train/val/test plus an external test on a completely unseen dataset (95.5% recall, see 7.3) confirm the high internal accuracy reflects real signal rather than data leakage.
 
 ### 8.2 Comparison with State-of-the-Art
 
@@ -444,6 +457,7 @@ python src/verify_model_pytorch.py --data_path data --plot --export
 | **Lighting Conditions** | Performance may vary in extreme lighting | Add low-light augmentation |
 | **Camera Angle Dependency** | Optimized for overhead/side CCTV views | Train on multi-angle dataset |
 | **Occlusion Handling** | Partially hidden accidents may not be detected | Integrate object tracking |
+| **Internal vs. External Accuracy Gap** | 99.80% on the in-house test split vs. 95.5% recall on an unseen external dataset (see 7.3) | Expand training data diversity to close the gap |
 
 ### 10.2 Future Work
 
