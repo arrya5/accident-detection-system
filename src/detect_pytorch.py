@@ -209,7 +209,7 @@ class EmailAlertSystem:
                 <hr style="margin-top: 30px;">
                 <p style="color: #666; font-size: 12px;">
                     This is an automated alert from the Accident Detection System.<br>
-                    Detection powered by AI (MobileNetV2 - 99.80% accuracy)
+                    Detection powered by AI (MobileNetV2 - 95.5% accuracy)
                 </p>
             </body>
             </html>

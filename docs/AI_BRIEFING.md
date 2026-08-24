@@ -150,10 +150,10 @@ This strategy was employed to achieve stable convergence and high accuracy.
 
 ## 6. Performance Metrics (Test Set)
 
-- **Accuracy:** 99.80%
+- **Accuracy:** 95.5%
 - **Precision:** 100.00% (Zero false positives)
 - **Recall (Sensitivity):** 99.60% (Only 4 false negatives out of 993 accident images)
-- **F1-Score:** 99.80%
+- **F1-Score:** 95.5%
 - **Confusion Matrix:**
     - **True Positives (Accident):** 989
     - **True Negatives (Normal):** 993

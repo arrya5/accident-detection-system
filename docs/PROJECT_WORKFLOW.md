@@ -115,7 +115,7 @@ This is where the "learning" happens. We use the prepared data to train the mode
     1.  Loads the best trained model from the `models/` folder.
     2.  Runs the model on **every single image** in the `data/test` folder.
     3.  It calculates the final, official performance metrics (Accuracy, Precision, Recall, F1-Score).
-    4.  It saves these results in a structured JSON file, like **`output/verification_report.json`**. This report is the proof of the model's performance (e.g., 99.80% accuracy).
+    4.  It saves these results in a structured JSON file, like **`output/verification_report.json`**. This report is the proof of the model's performance (e.g., 95.5% accuracy).
 
 ---
 

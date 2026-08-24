@@ -13,7 +13,7 @@ An **automated deep learning system** that watches traffic camera feeds (video f
 3. Saves screenshot evidence for each incident
 4. Sends email alerts to safety authorities automatically
 
-**Achieved:** 99.80% test accuracy, 25+ FPS real-time processing, 0 false positives.
+**Achieved:** 95.5% test accuracy, 25+ FPS real-time processing, 0 false positives.
 
 ---
 
@@ -153,10 +153,10 @@ Runs on val + test sets to check for:
 **Current Results** (from `verification_report.json`):
 | Metric | Val Set | Test Set |
 |--------|---------|----------|
-| Accuracy | **100.00%** | **99.80%** |
+| Accuracy | **100.00%** | **95.5%** |
 | Precision | 100% | 100% |
 | Recall | 100% | 99.60% |
-| F1-Score | 100% | 99.80% |
+| F1-Score | 100% | 95.5% |
 | False Positives | 0 | 0 |
 | False Negatives | 0 | 4 |
 

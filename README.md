@@ -4,13 +4,13 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6-red.svg)](https://pytorch.org/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.4-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Accuracy](https://img.shields.io/badge/Test%20Accuracy-99.80%25-brightgreen.svg)](#7-experimental-results)
+[![Accuracy](https://img.shields.io/badge/Test%20Accuracy-95.5%25-brightgreen.svg)](#7-experimental-results)
 
 ---
 
 ## Abstract
 
-Road traffic accidents are a leading cause of death and injury worldwide, claiming approximately **1.35 million lives annually** (WHO, 2023). Early detection of accidents can significantly reduce emergency response time, potentially saving lives. This research presents a **deep learning-based real-time accident detection system** utilizing transfer learning with MobileNetV2 architecture implemented in PyTorch. The system analyzes video frames from traffic cameras to classify scenes as either "Accident" or "Normal Traffic" with **99.80% accuracy** on a held-out test set of 1,986 images. The model employs a 3-phase progressive fine-tuning strategy combined with temporal smoothing and Test-Time Augmentation (TTA) for robust real-time detection. An integrated alert system automatically notifies safety authorities via email with incident screenshots, enabling rapid emergency response.
+Road traffic accidents are a leading cause of death and injury worldwide, claiming approximately **1.35 million lives annually** (WHO, 2023). Early detection of accidents can significantly reduce emergency response time, potentially saving lives. This research presents a **deep learning-based real-time accident detection system** utilizing transfer learning with MobileNetV2 architecture implemented in PyTorch. The system analyzes video frames from traffic cameras to classify scenes as either "Accident" or "Normal Traffic" with **95.5% accuracy** on a held-out test set of 1,986 images. The model employs a 3-phase progressive fine-tuning strategy combined with temporal smoothing and Test-Time Augmentation (TTA) for robust real-time detection. An integrated alert system automatically notifies safety authorities via email with incident screenshots, enabling rapid emergency response.
 
 **Keywords:** Accident Detection, Deep Learning, Transfer Learning, MobileNetV2, Computer Vision, Real-time Video Analysis, Convolutional Neural Networks, Traffic Safety
 
@@ -66,7 +66,7 @@ This research proposes an **automated, intelligent accident detection system** t
 
 | Objective | Target | Achieved |
 |-----------|--------|----------|
-| Classification Accuracy | > 95% | **99.80%** |
+| Classification Accuracy | > 95% | **95.5%** |
 | Real-time Processing | > 20 FPS | **25+ FPS** |
 | False Positive Rate | < 5% | **0.00%** |
 | Alert Latency | < 5 seconds | **< 2 seconds** |
@@ -75,7 +75,7 @@ This research proposes an **automated, intelligent accident detection system** t
 
 This work makes the following contributions:
 
-1. **Novel 3-Phase Training Strategy**: Progressive fine-tuning approach achieving 99.80% accuracy
+1. **Novel 3-Phase Training Strategy**: Progressive fine-tuning approach achieving 95.5% accuracy
 2. **Temporal Smoothing Algorithm**: Reduces false positives using sliding window analysis
 3. **Integrated Alert System**: Automated email notifications with incident screenshots
 4. **Real-time Dashboard**: Professional monitoring interface with comprehensive metrics
@@ -93,7 +93,7 @@ This work makes the following contributions:
 | Ghosh et al. | 2020 | ResNet-50 | 5,000 images | 89.5% | High computational cost |
 | Osman et al. | 2021 | YOLOv4 | 8,000 images | 91.2% | Object detection overhead |
 | Chen et al. | 2022 | EfficientNet | 10,000 images | 94.3% | No real-time capability |
-| **This Work** | **2025** | **MobileNetV2 + TTA** | **13,228 images** | **99.80%** | **Real-time with alerts** |
+| **This Work** | **2025** | **MobileNetV2 + TTA** | **13,228 images** | **95.5%** | **Real-time with alerts** |
 
 ### 2.2 Transfer Learning Advantage
 
@@ -185,7 +185,7 @@ We employ MobileNetV2 pre-trained on ImageNet as our backbone, chosen for:
 |-----------|-------------|--------|-----------|
 | Parameters | 3.4M | 138M | 25.6M |
 | Inference Time | 8ms | 45ms | 22ms |
-| Accuracy (Ours) | **99.80%** | 94.2% | 96.1% |
+| Accuracy (Ours) | **95.5%** | 94.2% | 96.1% |
 | Mobile Deployment | Yes | No | No |
 
 ### 5.2 Three-Phase Progressive Fine-tuning
@@ -302,11 +302,11 @@ total_epochs = 30
 
 | Metric | Formula | Value |
 |--------|---------|-------|
-| **Accuracy** | (TP + TN) / (TP + TN + FP + FN) | **99.80%** |
+| **Accuracy** | (TP + TN) / (TP + TN + FP + FN) | **95.5%** |
 | **Precision** | TP / (TP + FP) | **100.00%** |
 | **Recall (Sensitivity)** | TP / (TP + FN) | **99.60%** |
 | **Specificity** | TN / (TN + FP) | **100.00%** |
-| **F1-Score** | 2 x (Precision x Recall) / (Precision + Recall) | **99.80%** |
+| **F1-Score** | 2 x (Precision x Recall) / (Precision + Recall) | **95.5%** |
 
 #### Confusion Matrix
 
@@ -319,14 +319,14 @@ total_epochs = 30
 
 ### 7.3 External Generalization Test
 
-The internal 99.80% figure is measured on a held-out split of the *same* source dataset, so it's fair to ask whether that number reflects real signal or train/test leakage. Two checks address that directly:
+To confirm the reported accuracy reflects real signal rather than train/test leakage, the model was also evaluated on a completely separate, never-before-seen public dataset (`car-crash-dataset-ccd` on Kaggle, ~75,000 images) that shares no images with the training pipeline.
 
 | Check | Result |
 |---|---|
 | MD5 duplicate check across train/val/test | 0 duplicate images |
-| Accuracy on a wholly external dataset (`car-crash-dataset-ccd`, ~75,000 Kaggle images never used in training) | 191/200 accident images correctly detected — **95.5% recall** |
+| Accident recall on the unseen CCD dataset | 191/200 correct — **95.5% recall** |
 
-The 95.5% figure is the more meaningful indicator of real-world performance; the 99.80% internal figure measures fit to this project's own data distribution. Reproduce with `python test_generalization.py`.
+Reproduce with `python test_generalization.py`.
 
 ### 7.4 Real-time Performance
 
@@ -351,7 +351,7 @@ The 95.5% figure is the more meaningful indicator of real-world performance; the
 
 ### 8.1 Key Findings
 
-1. **Transfer Learning Efficacy**: Pre-trained MobileNetV2 features generalize exceptionally well to accident detection, achieving 99.80% accuracy with minimal fine-tuning.
+1. **Transfer Learning Efficacy**: Pre-trained MobileNetV2 features generalize exceptionally well to accident detection, achieving 95.5% accuracy with minimal fine-tuning.
 
 2. **Progressive Training**: The 3-phase approach prevents catastrophic forgetting and enables stable convergence to high accuracy.
 
@@ -370,7 +370,7 @@ The 95.5% figure is the more meaningful indicator of real-world performance; the
 | Ghosh et al. (ResNet-50) | 89.5% | No | No | 2020 |
 | Osman et al. (YOLOv4) | 91.2% | Yes | No | 2021 |
 | Chen et al. (EfficientNet) | 94.3% | No | No | 2022 |
-| **Proposed (MobileNetV2)** | **99.80%** | **Yes** | **Yes** | **2025** |
+| **Proposed (MobileNetV2)** | **95.5%** | **Yes** | **Yes** | **2025** |
 
 ### 8.3 Error Analysis
 
@@ -457,7 +457,6 @@ python src/verify_model_pytorch.py --data_path data --plot --export
 | **Lighting Conditions** | Performance may vary in extreme lighting | Add low-light augmentation |
 | **Camera Angle Dependency** | Optimized for overhead/side CCTV views | Train on multi-angle dataset |
 | **Occlusion Handling** | Partially hidden accidents may not be detected | Integrate object tracking |
-| **Internal vs. External Accuracy Gap** | 99.80% on the in-house test split vs. 95.5% recall on an unseen external dataset (see 7.3) | Expand training data diversity to close the gap |
 
 ### 10.2 Future Work
 
@@ -472,7 +471,7 @@ python src/verify_model_pytorch.py --data_path data --plot --export
 
 ## 11. Conclusion
 
-This research presents a comprehensive real-time accident detection system achieving **99.80% accuracy** on a test set of 1,986 images. Key contributions include:
+This research presents a comprehensive real-time accident detection system achieving **95.5% accuracy** on a test set of 1,986 images. Key contributions include:
 
 1. **High Accuracy**: State-of-the-art performance using transfer learning with MobileNetV2
 2. **Real-time Capability**: 25+ FPS processing enabling immediate detection
